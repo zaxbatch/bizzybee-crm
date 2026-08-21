@@ -123,9 +123,14 @@ tr:hover td { background: #fafbfe; }
 
 /* Modal */
 .modal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); display: flex; align-items: center; justify-content: center; z-index: 50; }
-.modal-card { background: var(--panel); border-radius: 12px; width: 520px; max-width: 94vw; max-height: 90vh; overflow: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.25); }
+.modal-card { background: var(--panel); border-radius: 12px; width: 520px; max-width: 94vw; max-height: 90vh; overflow: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.25); transition: width .18s ease, max-width .18s ease, height .18s ease, max-height .18s ease; }
+.modal.expanded .modal-card { width: 96vw; max-width: 96vw; height: 92vh; max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; }
+.modal.expanded .modal-body { overflow: auto; flex: 1; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
-.modal-head h3 { margin: 0; }
+.modal-head h3 { margin: 0; flex: 1; }
+/* Clickable record names (e.g. contact name opens the edit modal) */
+.contact-name { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.contact-name:hover { color: var(--primary-dark); text-decoration: underline; }
 .modal-body { padding: 18px 20px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-grid .full { grid-column: 1 / -1; }

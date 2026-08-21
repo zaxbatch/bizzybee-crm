@@ -797,7 +797,7 @@ async function renderContacts(el) {
           ${contacts.map((c) => `
             <tr>
               <td class="sel-col"><input type="checkbox" data-sel="${esc(c.id)}" /></td>
-              <td><strong>${esc(c.firstName)} ${esc(c.lastName)}</strong>${c.address ? `<div class="meta">${esc(c.address)}</div>` : ''}</td>
+              <td><button type="button" class="contact-name" data-edit-contact="${esc(c.id)}"><strong>${esc(c.firstName)} ${esc(c.lastName)}</strong></button>${c.address ? `<div class="meta">${esc(c.address)}</div>` : ''}</td>
               <td>${esc(c.title || '—')}</td>
               <td><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></td>
               <td>${esc(c.companyName || '—')}</td>
@@ -1180,6 +1180,9 @@ function openModal(title, formHtml) {
 
 function closeModal() {
   $('#modal').classList.add('hidden');
+  $('#modal').classList.remove('expanded');
+  $('#modalExpand').textContent = '⛶';
+  $('#modalExpand').title = 'Expand / fullscreen';
   $('#modalForm').innerHTML = '';
 }
 
@@ -1187,6 +1190,11 @@ function closeModal() {
 
 document.querySelectorAll('.nav-btn').forEach((b) => b.addEventListener('click', () => navigate(b.dataset.view)));
 $('#modalClose').addEventListener('click', closeModal);
+$('#modalExpand').addEventListener('click', () => {
+  const expanded = $('#modal').classList.toggle('expanded');
+  $('#modalExpand').textContent = expanded ? '🗕' : '⛶';
+  $('#modalExpand').title = expanded ? 'Restore' : 'Expand / fullscreen';
+});
 $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 
