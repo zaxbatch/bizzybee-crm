@@ -1,0 +1,28 @@
+# Netlify configuration for the BizzyBee CRM site
+# (brought to you by Z Dot LLC)
+
+[build]
+  # Publish dir is staged by scripts/build-site.js: landing at /, CRM at /app/.
+  publish = "site"
+  functions = "netlify/functions"
+  command = "node scripts/build-site.js"
+
+# All CRM API traffic goes to the Express app running as a Netlify Function.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+# /app without a trailing slash → the CRM frontend
+[[redirects]]
+  from = "/app"
+  to = "/app/"
+  status = 301
+
+# Security headers for the static site
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"

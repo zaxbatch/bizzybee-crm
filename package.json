@@ -1,0 +1,27 @@
+{
+  "name": "bizzybee-crm",
+  "version": "1.0.0",
+  "description": "A basic CRM application built with Node.js and Express",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "crm",
+    "nodejs",
+    "express",
+    "contacts",
+    "deals"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@netlify/blobs": "^11.0.1",
+    "express": "^4.21.2",
+    "serverless-http": "^4.0.0"
+  }
+}

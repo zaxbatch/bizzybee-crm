@@ -1,0 +1,8 @@
+node_modules/
+data/db.json
+data/db.json.tmp
+npm-debug.log
+.env
+site/
+.netlify/
+AGENT_STOP

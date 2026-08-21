@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BizzyBee CRM — Free CRM, Pro &amp; Business Plans | Z Dot LLC</title>
+  <meta name="description" content="BizzyBee CRM for small teams. Free plan with 1,000 contacts, Pro at $19/mo, and Business at $49/mo with white-label, priority support and API access. Track contacts, deals and activities. Brought to you by Z Dot LLC." />
+  <style>
+    :root {
+      --ink: #131a26; --ink-2: #1c2433; --panel: #ffffff; --border: #e2e6ee;
+      --text: #1e2733; --muted: #68738a; --amber: #f59e0b; --amber-dark: #d97706;
+      --ok: #16a34a; --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--text); background: #f7f8fb; line-height: 1.55; }
+    a { color: var(--amber-dark); }
+    .wrap { max-width: 1060px; margin: 0 auto; padding: 0 22px; }
+
+    /* Top bar */
+    .topbar { position: sticky; top: 0; z-index: 20; background: rgba(19,26,38,0.92); backdrop-filter: blur(8px); color: #fff; }
+    .topbar .wrap { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; padding-bottom: 14px; }
+    .brand { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 18px; letter-spacing: -0.01em; }
+    .brand .bee { font-size: 22px; }
+    .topnav { display: flex; align-items: center; gap: 22px; font-size: 14px; }
+    .topnav a { color: #cdd5e0; text-decoration: none; }
+    .topnav a:hover { color: #fff; }
+    .zdot-pill { font-size: 12px; color: var(--amber); border: 1px solid rgba(245,158,11,0.5); padding: 4px 11px; border-radius: 999px; white-space: nowrap; }
+
+    /* Hero */
+    .hero { background: radial-gradient(1200px 500px at 70% -10%, #2a2f3d 0%, var(--ink) 55%), var(--ink); color: #fff; padding: 84px 0 72px; }
+    .hero .wrap { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center; }
+    .hero h1 { font-size: 44px; line-height: 1.12; margin: 0 0 18px; letter-spacing: -0.02em; }
+    .hero h1 .amber { color: var(--amber); }
+    .hero p.lead { font-size: 18px; color: #b9c2d1; margin: 0 0 28px; max-width: 480px; }
+    .hero .trust { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 26px; color: #9aa5b5; font-size: 13px; }
+    .hero .trust span::before { content: "✓ "; color: var(--ok); font-weight: 700; }
+    .hero-cta { margin-top: 8px; }
+    .btn { display: inline-block; border: 0; border-radius: 10px; padding: 13px 24px; font-size: 15px; font-weight: 700; cursor: pointer; text-decoration: none; }
+    .btn-amber { background: var(--amber); color: #1e1200; }
+    .btn-amber:hover { background: var(--amber-dark); color: #fff; }
+    .btn-ghost { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.18); }
+    .btn-ghost:hover { background: rgba(255,255,255,0.16); }
+    .btn-login { display: inline-block; border: 1px solid rgba(255,255,255,0.28); color: #fff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 7px 16px; border-radius: 9px; transition: background .15s ease, border-color .15s ease, color .15s ease; }
+    .btn-login:hover { background: rgba(245,158,11,0.12); border-color: var(--amber); color: var(--amber); }
+
+    /* Lead form card */
+    .lead-card { background: var(--panel); color: var(--text); border-radius: var(--radius); padding: 30px 28px; box-shadow: 0 24px 60px rgba(0,0,0,0.35); }
+    .lead-card h2 { margin: 0 0 6px; font-size: 21px; }
+    .lead-card .sub { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+    .lead-card label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 5px; }
+    .lead-card .field { margin-bottom: 14px; }
+    .lead-card input { width: 100%; padding: 11px 13px; border: 1px solid var(--border); border-radius: 9px; font-size: 15px; font-family: inherit; }
+    .lead-card input:focus { outline: 2px solid var(--amber); border-color: transparent; }
+    .lead-card .btn { width: 100%; margin-top: 4px; }
+    .lead-card .fine { font-size: 12px; color: var(--muted); text-align: center; margin-top: 14px; }
+    .lead-card .form-note { margin-top: 14px; padding: 12px; border-radius: 9px; font-size: 14px; display: none; }
+    .lead-card .form-note.ok { display: block; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .lead-card .form-note.err { display: block; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .hp-field { position: absolute; left: -9999px; opacity: 0; height: 0; width: 0; }
+
+    /* Social proof strip */
+    .strip { background: var(--panel); border-bottom: 1px solid var(--border); }
+    .strip .wrap { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; padding-top: 22px; padding-bottom: 22px; }
+    .strip .item { text-align: center; }
+    .strip .item b { display: block; font-size: 19px; }
+    .strip .item span { font-size: 13px; color: var(--muted); }
+
+    /* Sections */
+    section { padding: 66px 0; }
+    section h2 { font-size: 30px; letter-spacing: -0.015em; margin: 0 0 8px; }
+    section .kicker { color: var(--amber-dark); font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 8px; }
+    .section-head { text-align: center; max-width: 620px; margin: 0 auto 40px; }
+    .section-head p { color: var(--muted); margin: 0; }
+
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .feature { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+    .feature .ico { font-size: 26px; }
+    .feature h3 { margin: 10px 0 6px; font-size: 17px; }
+    .feature p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; counter-reset: step; }
+    .step { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+    .step .num { font-size: 26px; font-weight: 800; color: var(--amber); }
+    .step h3 { margin: 8px 0 6px; font-size: 17px; }
+    .step p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .faq { max-width: 720px; margin: 0 auto; display: grid; gap: 12px; }
+    .faq details { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+    .faq summary { font-weight: 600; cursor: pointer; }
+    .faq p { margin: 10px 0 0; color: var(--muted); font-size: 14px; }
+
+    .cta { background: var(--ink); color: #fff; text-align: center; padding: 70px 0; }
+    .cta h2 { margin: 0 0 10px; }
+    .cta p { color: #b9c2d1; margin: 0 auto 26px; max-width: 460px; }
+    .cta .btn { margin: 0 6px; }
+
+    footer { background: #0d1119; color: #8b95a6; padding: 34px 0; font-size: 13px; }
+    footer .wrap { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+    footer a { color: #cdd5e0; text-decoration: none; }
+    footer .zdot { color: var(--amber); font-weight: 700; }
+
+    /* Cookie consent */
+    .cookie-banner { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); width: min(720px, calc(100vw - 32px)); background: var(--ink); color: #fff; border: 1px solid rgba(255,255,255,0.16); border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; gap: 16px; z-index: 60; box-shadow: 0 14px 44px rgba(0,0,0,0.45); }
+    .cookie-banner .cookie-text { flex: 1; font-size: 13px; color: #cdd5e0; line-height: 1.5; }
+    .cookie-banner .cookie-text strong { display: block; color: #fff; margin-bottom: 2px; font-size: 14px; }
+    .cookie-banner .cookie-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .cookie-banner .btn { padding: 8px 16px; font-size: 13px; }
+    .hidden { display: none !important; }
+
+    /* Pricing */
+    .pricing-wrap { overflow-x: auto; }
+    .pricing { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; min-width: 640px; }
+    .pricing table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .pricing th, .pricing td { padding: 13px 16px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .pricing thead th { background: var(--ink); color: #fff; font-size: 16px; font-weight: 700; }
+    .pricing thead th .price { display: block; font-size: 24px; font-weight: 800; color: var(--amber); margin-top: 3px; }
+    .pricing thead th .sub { display: block; font-size: 11px; color: #9aa5b5; font-weight: 400; }
+    .pricing tbody th { text-align: left; color: var(--muted); font-weight: 600; white-space: nowrap; font-size: 13px; }
+    .pricing tbody td { color: var(--text); }
+    .pricing .tier-col.business { background: rgba(245,158,11,0.04); }
+    .pricing .cta-row td { border-bottom: 0; padding-top: 16px; padding-bottom: 18px; }
+    .pricing .btn { display: block; text-align: center; padding: 11px 14px; font-size: 14px; }
+    .pricing .btn.btn-ghost-dark { background: #eef1f7; color: var(--text); border: 1px solid var(--border); }
+    .pricing .btn.btn-ghost-dark:hover { background: #e2e7f0; }
+    .pricing-note { text-align: center; color: var(--muted); font-size: 13px; margin-top: 14px; }
+
+    @media (max-width: 640px) {
+      .cookie-banner { flex-direction: column; align-items: stretch; text-align: center; }
+      .cookie-banner .cookie-actions { justify-content: center; }
+    }
+
+    @media (max-width: 860px) {
+      .hero { padding: 54px 0 48px; }
+      .hero .wrap { grid-template-columns: 1fr; gap: 32px; }
+      .hero h1 { font-size: 34px; }
+      .features, .steps { grid-template-columns: 1fr; }
+      .strip .wrap { grid-template-columns: repeat(2, 1fr); }
+      .topnav .link { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="wrap">
+      <div class="brand"><span class="bee">🐝</span> BizzyBee CRM</div>
+      <div class="topnav">
+        <a class="link" href="#features">Features</a>
+        <a class="link" href="#pricing">Pricing</a>
+        <a class="link" href="#how">How it works</a>
+        <a class="link" href="#faq">FAQ</a>
+        <span class="zdot-pill">Brought to you by Z Dot LLC</span>
+        <a class="btn-login" href="/app/">Log in</a>
+      </div>
+    </div>
+  </div>
+
+  <header class="hero">
+    <div class="wrap">
+      <div>
+        <h1>The free CRM your small team will <span class="amber">actually use</span></h1>
+        <p class="lead">Contacts, deals, and activity tracking without the bloat or the bill. Start free with 1,000 contacts — upgrade to Pro or Business when you grow.</p>
+        <div class="hero-cta">
+          <a class="btn btn-amber" href="/app/">Open the CRM →</a>
+          <a class="btn btn-ghost" href="#pricing">See pricing</a>
+        </div>
+        <div class="trust">
+          <span>Free forever plan</span>
+          <span>No credit card to start</span>
+          <span>1,000 contacts free</span>
+          <span>Export to CSV anytime</span>
+        </div>
+      </div>
+
+      <div class="lead-card" id="signup">
+        <h2>Start free today</h2>
+        <p class="sub">We'll add you to the BizzyBee launch list and be in touch.</p>
+        <form id="leadForm">
+          <div class="hp-field" aria-hidden="true"><label>Website</label><input type="text" name="company_website" tabindex="-1" autocomplete="off" /></div>
+          <div class="field"><label for="leadName">Name</label><input id="leadName" name="name" type="text" placeholder="Jane Doe" required /></div>
+          <div class="field"><label for="leadEmail">Work email</label><input id="leadEmail" name="email" type="email" placeholder="jane@company.com" required /></div>
+          <div class="field"><label for="leadCompany">Company <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input id="leadCompany" name="company" type="text" placeholder="Acme Inc." /></div>
+          <button class="btn btn-amber" type="submit">Get started free →</button>
+          <p class="fine">Sign-ups are added to the Z Dot LLC HubSpot CRM for follow-up.</p>
+        </form>
+        <div id="formNote" class="form-note"></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="strip">
+    <div class="wrap">
+      <div class="item"><b>Free</b><span>forever plan</span></div>
+      <div class="item"><b>5 min</b><span>to set up</span></div>
+      <div class="item"><b>4</b><span>integrated views</span></div>
+      <div class="item"><b>100%</b><span>yours — CSV export</span></div>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="kicker">Features</p>
+        <h2>Everything a small team needs. Nothing it doesn't.</h2>
+        <p>BizzyBee keeps your sales motion in one tidy workspace.</p>
+      </div>
+      <div class="features">
+        <div class="feature"><div class="ico">👥</div><h3>Contacts</h3><p>Names, titles, companies, tags and notes — searchable in one place.</p></div>
+        <div class="feature"><div class="ico">💼</div><h3>Deal pipeline</h3><p>Drag-free pipeline stages from lead to won, with amounts and close dates.</p></div>
+        <div class="feature"><div class="ico">📝</div><h3>Activity log</h3><p>Calls, emails and meetings, timestamped against each contact.</p></div>
+        <div class="feature"><div class="ico">📊</div><h3>Dashboard</h3><p>Live counts, pipeline totals and recent activity at a glance.</p></div>
+        <div class="feature"><div class="ico">⬇️</div><h3>CSV export</h3><p>Your data is yours: export contacts, companies, deals or activities anytime.</p></div>
+        <div class="feature"><div class="ico">🔐</div><h3>Private workspaces</h3><p>Every account gets its own blank workspace with real login protection.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" style="background:#eef1f7">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="kicker">How it works</p>
+        <h2>Live in three steps</h2>
+      </div>
+      <div class="steps">
+        <div class="step"><div class="num">1</div><h3>Create your account</h3><p>One email and password — no credit card, no sales call.</p></div>
+        <div class="step"><div class="num">2</div><h3>Add your contacts</h3><p>Import or type in the people and companies you're working with.</p></div>
+        <div class="step"><div class="num">3</div><h3>Track deals</h3><p>Move deals through your pipeline and log every touchpoint.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pricing" style="background:#eef1f7">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="kicker">Pricing</p>
+        <h2>Simple plans that grow with you</h2>
+        <p>Start free. Upgrade when you need more contacts, automation, or full white-label control.</p>
+      </div>
+      <div class="pricing-wrap">
+        <div class="pricing">
+          <table>
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Free<span class="price">$0</span><span class="sub">forever</span></th>
+                <th>Pro<span class="price">$19<span style="font-size:12px;font-weight:400">/mo</span></span><span class="sub">per account</span></th>
+                <th class="tier-col business">Business<span class="price">$49<span style="font-size:12px;font-weight:400">/mo</span></span><span class="sub">per account</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><th>Contacts</th><td>1,000</td><td>Unlimited</td><td class="tier-col business">Unlimited</td></tr>
+              <tr><th>Pipelines</th><td>5</td><td>20</td><td class="tier-col business">Unlimited</td></tr>
+              <tr><th>Custom fields</th><td>0</td><td>50</td><td class="tier-col business">Unlimited</td></tr>
+              <tr><th>API access</th><td>❌</td><td>✅</td><td class="tier-col business">✅ Full access</td></tr>
+              <tr><th>White-label</th><td>❌</td><td>❌</td><td class="tier-col business">✅ Full rebranding + custom domain</td></tr>
+              <tr><th>Priority support</th><td>❌</td><td>❌</td><td class="tier-col business">✅ 1–4hr response, dedicated queue</td></tr>
+              <tr><th>Workflow automation</th><td>❌</td><td>Basic</td><td class="tier-col business">Advanced</td></tr>
+              <tr><th>Reports &amp; analytics</th><td>Basic</td><td>Custom reports</td><td class="tier-col business">Advanced + AI insights</td></tr>
+              <tr class="cta-row">
+                <th></th>
+                <td><a class="btn btn-ghost-dark" href="#signup">Get started free</a></td>
+                <td><a class="btn btn-amber" href="mailto:zdotconnect@gmail.com?subject=BizzyBee%20Pro%20upgrade">Upgrade to Pro</a></td>
+                <td class="tier-col business"><a class="btn btn-amber" href="mailto:zdotconnect@gmail.com?subject=BizzyBee%20Business%20upgrade">Upgrade to Business</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="pricing-note">Pro and Business upgrades are currently arranged directly with Z Dot LLC — <a href="mailto:zdotconnect@gmail.com?subject=BizzyBee%20pricing">email us</a> to get set up. All prices in USD.</p>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="kicker">FAQ</p>
+        <h2>Good questions</h2>
+      </div>
+      <div class="faq">
+        <details open>
+          <summary>Is BizzyBee CRM really free?</summary>
+          <p>Yes — the Free plan is free forever, no credit card required. You get 1,000 contacts, 5 pipelines, deals, activities, the dashboard and CSV export at no cost. Paid plans (Pro $19/mo, Business $49/mo) unlock more capacity and power when you need it.</p>
+        </details>
+        <details>
+          <summary>What's included in Pro and Business?</summary>
+          <p>Pro adds unlimited contacts, 20 pipelines, 50 custom fields, API access, basic workflow automation and custom reports. Business adds unlimited pipelines and custom fields, full API access, white-label rebranding with your own domain, priority support (1–4hr response), advanced automation, and AI-powered insights. See the <a href="#pricing">pricing table</a>.</p>
+        </details>
+        <details>
+          <summary>Who is behind BizzyBee CRM?</summary>
+          <p>BizzyBee CRM is brought to you by <strong>Z Dot LLC</strong>.</p>
+        </details>
+        <details>
+          <summary>Can I export my data?</summary>
+          <p>Always. Every view has a one-click CSV export, so your data is never locked in.</p>
+        </details>
+        <details>
+          <summary>What happens to my sign-up info?</summary>
+          <p>Your name and email go straight into the Z Dot LLC HubSpot CRM so we can follow up with you personally. We never sell your data.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta">
+    <div class="wrap">
+      <h2>Ready to bee organized?</h2>
+      <p>Join the BizzyBee launch list and be first in line when your workspace is ready.</p>
+      <a class="btn btn-amber" href="#signup">Get started free</a>
+      <a class="btn btn-ghost" href="#" id="appLink">Open the CRM</a>
+    </div>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <div>© <span id="year"></span> BizzyBee CRM — Brought to you by <span class="zdot">Z Dot LLC</span></div>
+      <div><a href="mailto:zdotconnect@gmail.com">zdotconnect@gmail.com</a></div>
+    </div>
+  </footer>
+
+  <!-- Cookie consent -->
+  <div id="cookieBanner" class="cookie-banner hidden" role="dialog" aria-label="Cookie consent">
+    <div class="cookie-text">
+      <strong>🍪 Cookies &amp; local storage</strong>
+      <span>BizzyBee uses essential cookies and local storage to keep the site and CRM working (for example, keeping you logged in). No tracking cookies are used. Your choice is saved on your device.</span>
+    </div>
+    <div class="cookie-actions">
+      <button type="button" id="cookieAccept" class="btn btn-amber">Accept</button>
+      <button type="button" id="cookieDecline" class="btn btn-ghost">Decline</button>
+    </div>
+  </div>
+
+  <script>
+    // The CRM app is deployed alongside this landing on the same site, at
+    // /app/. Relative path = works on the netlify.app URL and any custom domain.
+    var APP_URL = '/app/';
+    document.getElementById('appLink').href = APP_URL;
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Cookie consent — show once per visitor, remember the choice.
+    (function () {
+      var KEY = 'bb_cookie_consent';
+      var banner = document.getElementById('cookieBanner');
+      if (!banner) return;
+      if (localStorage.getItem(KEY)) return; // already decided
+      banner.classList.remove('hidden');
+      function decide(choice) {
+        localStorage.setItem(KEY, choice);
+        banner.classList.add('hidden');
+      }
+      document.getElementById('cookieAccept').addEventListener('click', function () { decide('accepted'); });
+      document.getElementById('cookieDecline').addEventListener('click', function () { decide('declined'); });
+    })();
+
+    var form = document.getElementById('leadForm');
+    var note = document.getElementById('formNote');
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var fd = new FormData(form);
+      var payload = {
+        name: fd.get('name'),
+        email: fd.get('email'),
+        company: fd.get('company')
+      };
+      // Honeypot: if filled in, silently pretend success (it's a bot).
+      if (fd.get('company_website')) {
+        note.className = 'form-note ok';
+        note.textContent = 'Thanks — you\'re on the list! 🎉';
+        form.style.display = 'none';
+        return;
+      }
+      var btn = form.querySelector('button');
+      var original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '…';
+      note.className = 'form-note';
+      try {
+        var res = await fetch('/.netlify/functions/lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
+        note.className = 'form-note ok';
+        note.textContent = data.duplicate
+          ? 'You\'re already on the list — talk soon! 🐝'
+          : 'Thanks — you\'re on the list! We\'ll be in touch from Z Dot LLC. 🐝';
+        form.style.display = 'none';
+      } catch (err) {
+        note.className = 'form-note err';
+        note.textContent = err && err.name === 'TypeError'
+          ? 'Can\u2019t reach the sign-up service. If you opened this page as a local file, use the live page at bizzybee.zdotllc.netlify.app instead.'
+          : (err.message || 'Something went wrong. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    });
+  </script>
+</body>
+</html>

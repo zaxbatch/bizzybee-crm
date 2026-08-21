@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BizzyBee CRM</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Auth screen (shown when logged out) -->
+  <div id="authScreen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="brand-icon">🐝</span>
+        <span>BizzyBee CRM</span>
+      </div>
+      <p class="auth-tagline">Brought to you by Z Dot LLC</p>
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-auth-tab="login">Log in</button>
+        <button class="auth-tab" data-auth-tab="register">Create account</button>
+      </div>
+      <form id="authForm" class="auth-body" autocomplete="on"></form>
+      <p id="authHint" class="auth-hint hidden"></p>
+    </div>
+  </div>
+
+  <div class="layout hidden" id="appShell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-icon">🐝</span>
+        <span>BizzyBee CRM</span>
+      </div>
+      <nav>
+        <button class="nav-btn active" data-view="dashboard">📊 Dashboard</button>
+        <button class="nav-btn" data-view="contacts">👥 Contacts</button>
+        <button class="nav-btn" data-view="companies">🏢 Companies</button>
+        <button class="nav-btn" data-view="deals">💼 Deals</button>
+        <button class="nav-btn" data-view="activities">📝 Activities</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-box">
+          <div class="user-email" id="userEmail"></div>
+          <div class="plan-box">
+            <span class="plan-badge" id="planBadge">Free</span>
+            <span class="plan-usage" id="planUsage"></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="upgradeBtn">Upgrade</button>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="logoutBtn">Log out</button>
+        </div>
+        <div class="made-by">🐝 Brought to you by <strong>Z Dot LLC</strong></div>
+        <a href="/api/health" target="_blank" rel="noopener">API health</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="search-wrap">
+          <input id="globalSearch" type="search" placeholder="Search contacts, companies, deals…" autocomplete="off" />
+        </div>
+        <div class="topbar-actions">
+          <button id="primaryAction" class="btn btn-primary">+ Add</button>
+          <div id="addMenu" class="add-menu hidden">
+            <button type="button" class="add-item" data-add="contact">👥 New Contact</button>
+            <button type="button" class="add-item" data-add="company">🏢 New Company</button>
+            <button type="button" class="add-item" data-add="deal">💼 New Deal</button>
+            <button type="button" class="add-item" data-add="activity">📝 New Activity</button>
+          </div>
+        </div>
+      </header>
+
+      <section id="view" class="view"></section>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modalTitle"></h3>
+        <button id="modalClose" class="btn btn-ghost">✕</button>
+      </div>
+      <form id="modalForm" class="modal-body"></form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
