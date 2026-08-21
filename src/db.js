@@ -208,7 +208,7 @@ class Db {
  * their own blank workspace (all CRM records carry an ownerId).
  */
 function emptyData() {
-  return { users: [], sessions: [], resets: [], companies: [], contacts: [], deals: [], activities: [] };
+  return { users: [], sessions: [], resets: [], companies: [], contacts: [], deals: [], activities: [], custom_fields: [] };
 }
 
 module.exports = { Db, DEAL_STAGES };

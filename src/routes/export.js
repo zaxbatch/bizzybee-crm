@@ -2,6 +2,7 @@
 
 const express = require('express');
 const { toCsv } = require('../csv');
+const { defsFor } = require('./customfields');
 
 /**
  * CSV exporter. One endpoint per entity, scoped to the authenticated user.
@@ -33,9 +34,18 @@ function exportRouter(db) {
   const router = express.Router();
 
   router.get('/contacts.csv', (req, res) => {
+    const defs = defsFor(db, req.userId);
+    // Custom field labels become extra columns (deduped if labels repeat).
+    const labelCount = new Map();
+    const customCols = defs.map((d) => {
+      const n = (labelCount.get(d.label) || 0) + 1;
+      labelCount.set(d.label, n);
+      return n === 1 ? d.label : `${d.label} (${n})`;
+    });
+    const headers = [...CONTACT_COLUMNS, ...customCols];
     const rows = db.allFor('contacts', req.userId).map((c) => {
       const company = c.companyId ? db.getFor('companies', c.companyId, req.userId) : null;
-      return {
+      const row = {
         firstName: c.firstName,
         lastName: c.lastName,
         email: c.email,
@@ -48,8 +58,10 @@ function exportRouter(db) {
         notes: c.notes,
         createdAt: c.createdAt
       };
+      defs.forEach((d, i) => { row[customCols[i]] = (c.custom && c.custom[d.id]) || ''; });
+      return row;
     });
-    csvResponse(res, 'contacts.csv', CONTACT_COLUMNS, rows);
+    csvResponse(res, 'contacts.csv', headers, rows);
   });
 
   router.get('/companies.csv', (req, res) => {

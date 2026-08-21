@@ -3,6 +3,7 @@
 const express = require('express');
 const { validateContact } = require('../validators');
 const { contactLimitError } = require('../plans');
+const { validateCustomValues } = require('./customfields');
 
 function idsOf(body) {
   const ids = Array.isArray(body && body.ids) ? body.ids : [];
@@ -42,6 +43,11 @@ function contactsRouter(db) {
     if (req.body.companyId && !db.getFor('companies', req.body.companyId, req.userId)) {
       return res.status(400).json({ error: `Company ${req.body.companyId} does not exist` });
     }
+    if (req.body.custom !== undefined) {
+      const v = validateCustomValues(db, req.userId, req.body.custom);
+      if (!v.ok) return res.status(400).json({ error: 'Validation failed', details: [v.error] });
+      req.body.custom = v.value;
+    }
     const contact = db.insert('contacts', { ...req.body, ownerId: req.userId });
     res.status(201).json(contact);
   });
@@ -80,6 +86,11 @@ function contactsRouter(db) {
     if (errors.length) return res.status(400).json({ error: 'Validation failed', details: errors });
     if (req.body.companyId && !db.getFor('companies', req.body.companyId, req.userId)) {
       return res.status(400).json({ error: `Company ${req.body.companyId} does not exist` });
+    }
+    if (req.body.custom !== undefined) {
+      const v = validateCustomValues(db, req.userId, req.body.custom);
+      if (!v.ok) return res.status(400).json({ error: 'Validation failed', details: [v.error] });
+      req.body.custom = v.value;
     }
     res.json(db.update('contacts', req.params.id, req.body));
   });

@@ -14,6 +14,7 @@ const dashboardRouter = require('./routes/dashboard');
 const exportRouter = require('./routes/export');
 const importRouter = require('./routes/import');
 const accountRouter = require('./routes/account');
+const { customfieldsRouter } = require('./routes/customfields');
 
 /**
  * Builds and configures the Express application.
@@ -60,6 +61,7 @@ function createApp(options = {}) {
 
   // API
   app.use('/api/account', accountRouter(db, { adminKey: options.adminKey || config.adminKey }));
+  app.use('/api/custom-fields', customfieldsRouter(db));
   app.use('/api/contacts', contactsRouter(db));
   app.use('/api/companies', companiesRouter(db));
   app.use('/api/deals', dealsRouter(db));

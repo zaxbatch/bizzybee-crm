@@ -84,8 +84,7 @@ function usage(db, userId) {
   // The app currently ships one pipeline (fixed stages); the plan's pipeline
   // allowance is pre-wired for the multi-pipeline feature.
   const pipelines = 1;
-  // Custom fields are not implemented yet; 0 until the feature lands.
-  const customFields = 0;
+  const customFields = db.allFor('custom_fields', userId).length;
   return { contacts, pipelines, customFields };
 }
 

@@ -38,6 +38,7 @@ function toast(message, isError = false) {
 /* ============================ Plan / subscription ============================ */
 
 let accountInfo = null;
+let customFields = [];
 
 function fmtLimit(v) {
   return v === 'unlimited' ? 'Unlimited' : Number(v).toLocaleString();
@@ -61,6 +62,12 @@ async function loadAccount() {
   } catch { /* plan badge stays on its default */ }
 }
 
+async function loadCustomFields() {
+  try {
+    customFields = await api('GET', '/api/custom-fields');
+  } catch { /* keep whatever we had */ }
+}
+
 function renderPlan() {
   if (!accountInfo) return;
   const { plan, usage } = accountInfo;
@@ -69,6 +76,111 @@ function renderPlan() {
   $('#planUsage').textContent = limit === 'Unlimited'
     ? 'Unlimited contacts'
     : `${usage.contacts.toLocaleString()} / ${limit} contacts`;
+}
+
+/* ============================ Custom fields ============================ */
+
+async function renderCustomFields(el) {
+  const limit = accountInfo ? accountInfo.plan.limits.customFields : 0;
+  const locked = limit === 0;
+
+  let bodyHtml;
+  if (locked) {
+    bodyHtml = '<div class="empty" style="text-align:center;padding:28px;">' +
+      '<p>Custom fields are a <strong>Pro</strong> feature (up to 50) — <strong>Business</strong> gets unlimited.</p>' +
+      '<p style="margin-top:10px;"><button class="btn btn-primary" data-upgrade>Upgrade plan</button></p></div>';
+  } else if (customFields.length) {
+    bodyHtml = '<table><thead><tr><th>Label</th><th>Type</th><th>Options</th><th></th></tr></thead><tbody>' +
+      customFields.map((f) => `
+              <tr>
+                <td><strong>${esc(f.label)}</strong></td>
+                <td>${esc(f.type)}</td>
+                <td>${esc((f.options || []).join(', ') || '—')}</td>
+                <td class="row-actions">
+                  <button class="btn btn-sm" data-edit-cf="${esc(f.id)}">Edit</button>
+                  <button class="btn btn-danger btn-sm" data-del-cf="${esc(f.id)}">Delete</button>
+                </td>
+              </tr>`).join('') +
+      '</tbody></table>';
+  } else {
+    bodyHtml = '<div class="empty">No custom fields yet — add your first one. They appear on the contact form.</div>';
+  }
+
+  el.innerHTML = `
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Custom Fields (${customFields.length}${limit !== 'unlimited' ? ' / ' + limit : ''})</h2>
+        <div class="panel-actions">
+          ${locked ? '' : '<button class="btn btn-primary btn-sm" data-new-cf>+ New Field</button>'}
+        </div>
+      </div>
+      ${bodyHtml}
+    </div>`;
+
+  el.querySelector('[data-new-cf]')?.addEventListener('click', () => customFieldForm(null));
+  el.querySelectorAll('[data-edit-cf]').forEach((b) => b.addEventListener('click', () => customFieldForm(customFields.find((f) => f.id === b.dataset.editCf))));
+  el.querySelectorAll('[data-del-cf]').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Delete this custom field? Its values will be removed from all contacts.')) return;
+    try {
+      await api('DELETE', '/api/custom-fields/' + b.dataset.delCf);
+      customFields = await api('GET', '/api/custom-fields');
+      toast('Custom field deleted');
+      render();
+    } catch (err) { toast(err.message, true); }
+  }));
+  el.querySelector('[data-upgrade]')?.addEventListener('click', openUpgradeModal);
+}
+
+function customFieldForm(field) {
+  const isEdit = Boolean(field);
+  openModal(isEdit ? 'Edit Custom Field' : 'New Custom Field', `
+    <div class="form-grid">
+      <div class="full"><label>Label *</label><input name="label" required value="${esc(field?.label || '')}" placeholder="e.g. LinkedIn URL, Lead Source, Founded…" /></div>
+      <div class="full"><label>Type</label>
+        <select name="type">
+          ${['text', 'number', 'date', 'select', 'checkbox'].map((t) => `<option ${field?.type === t ? 'selected' : ''} value="${t}">${t}</option>`).join('')}
+        </select></div>
+      <div class="full cf-options" ${field?.type === 'select' ? '' : 'style="display:none"'}>
+        <label>Options <span class="opt">(one per line — for dropdowns)</span></label>
+        <textarea name="options" rows="4" placeholder="Option 1&#10;Option 2">${esc((field?.options || []).join('\n'))}</textarea>
+      </div>
+    </div>`);
+  $('#modalForm').querySelector('[name=type]').addEventListener('change', (e) => {
+    $('#modalForm').querySelector('.cf-options').style.display = e.target.value === 'select' ? '' : 'none';
+  });
+  $('#modalForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const type = fd.get('type');
+    const payload = {
+      label: fd.get('label'),
+      type,
+      options: type === 'select' ? String(fd.get('options')).split('\n').map((s) => s.trim()).filter(Boolean) : undefined,
+    };
+    try {
+      if (isEdit) await api('PUT', `/api/custom-fields/${field.id}`, payload);
+      else await api('POST', '/api/custom-fields', payload);
+      customFields = await api('GET', '/api/custom-fields');
+      toast(isEdit ? 'Custom field updated' : 'Custom field created');
+      closeModal();
+      render();
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
+function customInputHtml(f, value) {
+  const id = 'cf_' + f.id;
+  const label = `<label>${esc(f.label)}</label>`;
+  switch (f.type) {
+    case 'number': return `<div>${label}<input name="${id}" type="number" value="${esc(value || '')}" /></div>`;
+    case 'date': return `<div>${label}<input name="${id}" type="date" value="${esc(value || '')}" /></div>`;
+    case 'select': {
+      const opts = (f.options || []).map((o) => `<option ${o === value ? 'selected' : ''}>${esc(o)}</option>`).join('');
+      return `<div>${label}<select name="${id}"><option value="">—</option>${opts}</select></div>`;
+    }
+    case 'checkbox': return `<div class="full"><label class="cf-check"><input name="${id}" type="checkbox" ${value === 'true' ? 'checked' : ''} /> ${esc(f.label)}</label></div>`;
+    default: return `<div>${label}<input name="${id}" value="${esc(value || '')}" /></div>`;
+  }
 }
 
 function openUpgradeModal() {
@@ -324,8 +436,20 @@ function showImportMapping(entity, csvText) {
     return;
   }
   const headers = rows[0];
-  const fields = IMPORT_FIELDS[entity];
-  const guesses = headers.map(guessField);
+  let fields = IMPORT_FIELDS[entity];
+  let labels = IMPORT_LABELS;
+  let aliases = IMPORT_ALIASES;
+  if (entity === 'contacts' && customFields.length) {
+    fields = [...fields, ...customFields.map((f) => 'cf:' + f.id)];
+    labels = { ...labels, ...Object.fromEntries(customFields.map((f) => ['cf:' + f.id, f.label])) };
+    aliases = { ...aliases, ...Object.fromEntries(customFields.map((f) => ['cf:' + f.id, [f.label.toLowerCase().replace(/[^a-z0-9]/g, '')]])) };
+  }
+  const guessLocal = (header) => {
+    const n = String(header).toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const [field, al] of Object.entries(aliases)) if (al.includes(n)) return field;
+    return '';
+  };
+  const guesses = headers.map(guessLocal);
 
   const preview = `
     <table class="map-preview">
@@ -339,7 +463,7 @@ function showImportMapping(entity, csvText) {
       <td class="m-map">
         <select class="m-select" data-field="${i}">
           <option value="">— ignore —</option>
-          ${fields.map((f) => `<option value="${f}" ${f === guesses[i] ? 'selected' : ''}>${IMPORT_LABELS[f]}</option>`).join('')}
+          ${fields.map((f) => `<option value="${f}" ${f === guesses[i] ? 'selected' : ''}>${labels[f]}</option>`).join('')}
         </select>
       </td>
       <td class="m-req"><input type="checkbox" data-req="${i}" ${guesses[i] === 'email' || (entity === 'companies' && guesses[i] === 'name') ? 'checked' : ''} title="Rows missing this field are skipped" /></td>
@@ -537,6 +661,7 @@ function showApp() {
   $('#appShell').classList.remove('hidden');
   $('#userEmail').textContent = currentUser?.email || '';
   loadAccount();
+  loadCustomFields();
   navigate('dashboard');
 }
 
@@ -556,7 +681,7 @@ function enterApp(data) {
 
 /* ============================ Navigation ============================ */
 
-const VIEWS = ['dashboard', 'contacts', 'companies', 'deals', 'activities'];
+const VIEWS = ['dashboard', 'contacts', 'companies', 'deals', 'activities', 'customfields'];
 let currentView = 'dashboard';
 
 function setActiveNav(view) {
@@ -579,6 +704,7 @@ async function render() {
     else if (currentView === 'companies') await renderCompanies(el);
     else if (currentView === 'deals') await renderDeals(el);
     else if (currentView === 'activities') await renderActivities(el);
+    else if (currentView === 'customfields') await renderCustomFields(el);
   } catch (err) {
     el.innerHTML = `<div class="empty">⚠️ ${esc(err.message)}</div>`;
   }
@@ -791,7 +917,7 @@ async function renderContacts(el) {
       <table>
         <thead><tr>
           <th class="sel-col"><input type="checkbox" data-sel-all title="Select all" /></th>
-          <th>Name</th><th>Title</th><th>Email</th><th>Company</th><th>Status</th><th>Tags</th><th></th>
+          <th>Name</th><th>Title</th><th>Email</th><th>Company</th><th>Status</th><th>Tags</th>${customFields.map((f) => `<th>${esc(f.label)}</th>`).join('')}<th></th>
         </tr></thead>
         <tbody>
           ${contacts.map((c) => `
@@ -803,6 +929,7 @@ async function renderContacts(el) {
               <td>${esc(c.companyName || '—')}</td>
               <td><span class="badge ${esc(c.status)}">${esc(c.status)}</span></td>
               <td>${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</td>
+              ${customFields.map((f) => `<td>${esc(c.custom?.[f.id] || '—')}</td>`).join('')}
               <td class="row-actions">
                 <button class="btn btn-sm" data-edit-contact="${esc(c.id)}">Edit</button>
                 <button class="btn btn-danger btn-sm" data-del-contact="${esc(c.id)}">Delete</button>
@@ -853,6 +980,9 @@ function contactForm(contact, companies) {
         </select></div>
       <div><label>Tags (comma separated)</label><input name="tags" value="${esc((contact?.tags || []).join(', '))}" /></div>
       <div class="full"><label>Notes</label><textarea name="notes" rows="3">${esc(contact?.notes || '')}</textarea></div>
+      ${customFields.length ? `
+      <div class="full"><hr style="border:0;border-top:1px solid var(--border);margin:2px 0 10px;" /><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Custom fields</div></div>
+      ${customFields.map((f) => customInputHtml(f, contact?.custom?.[f.id])).join('')}` : ''}
     </div>`);
   initTypeaheads($('#modalForm'), { companyId: companyOptions });
   $('#modalForm').addEventListener('submit', async (e) => {
@@ -864,6 +994,12 @@ function contactForm(contact, companies) {
       status: fd.get('status'), notes: fd.get('notes'),
       tags: String(fd.get('tags')).split(',').map((t) => t.trim()).filter(Boolean)
     };
+    if (customFields.length) {
+      payload.custom = Object.fromEntries(customFields.map((f) => [
+        f.id,
+        f.type === 'checkbox' ? (fd.get('cf_' + f.id) === 'on' ? 'true' : 'false') : String(fd.get('cf_' + f.id) || '')
+      ]));
+    }
     try {
       if (isEdit) await api('PUT', `/api/contacts/${contact.id}`, payload);
       else await api('POST', '/api/contacts', payload);

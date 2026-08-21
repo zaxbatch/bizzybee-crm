@@ -3,6 +3,7 @@
 const express = require('express');
 const { parseCsv } = require('../csv');
 const { getPlan } = require('../plans');
+const { defsFor } = require('./customfields');
 
 /**
  * CSV importer. Accepts the format produced by /api/export (header row +
@@ -120,6 +121,12 @@ function importRouter(db) {
 
     const headers = rows[0].map((h) => String(h).trim().toLowerCase());
     const mapping = (req.body && req.body.mapping) || guessContactMapping(headers);
+    // Auto-map CSV headers that match a custom field label (cf:<fieldId>).
+    const defs = defsFor(db, req.userId);
+    for (const d of defs) {
+      const h = headers.find((x) => x === d.label.toLowerCase());
+      if (h !== undefined) mapping[`cf:${d.id}`] = h;
+    }
     const required = (req.body && Array.isArray(req.body.required)) ? req.body.required : ['firstName', 'lastName', 'email'];
     const col = buildColumns(headers, mapping);
 
@@ -178,6 +185,14 @@ function importRouter(db) {
         notes: get('notes'),
         _companyName: get('company')
       };
+
+      // Custom field values from cf:<fieldId> columns.
+      const custom = {};
+      for (const d of defs) {
+        const v = get(`cf:${d.id}`);
+        if (v) custom[d.id] = v;
+      }
+      if (Object.keys(custom).length) contact.custom = custom;
 
       // Skip fully blank rows (no mapped data at all).
       if (!contact.firstName && !contact.lastName && !contact.email && !contact._companyName && !contact.phone && !contact.title) continue;
