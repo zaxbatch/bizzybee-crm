@@ -124,3 +124,32 @@ test('deleting a custom field strips its values from contacts', async () => {
   const after = (await api('GET', `/api/contacts/${withValue.id}`)).json;
   assert.strictEqual(after.custom[textField.id], undefined, 'value should be stripped');
 });
+
+test('email/url/phone/textarea types: create, store valid, reject invalid', async () => {
+  const email = (await api('POST', '/api/custom-fields', { label: 'Secondary Email', type: 'email' })).json;
+  const url = (await api('POST', '/api/custom-fields', { label: 'Website', type: 'url' })).json;
+  const phone = (await api('POST', '/api/custom-fields', { label: 'Mobile 2', type: 'phone' })).json;
+  const notes = (await api('POST', '/api/custom-fields', { label: 'Extra Notes', type: 'textarea' })).json;
+
+  const ok = await api('POST', '/api/contacts', {
+    firstName: 'Edsger', lastName: 'Dijkstra', email: 'edsger@example.com',
+    custom: {
+      [email.id]: 'edsger2@example.com',
+      [url.id]: 'https://example.com',
+      [phone.id]: '+1 (555) 123-4567',
+      [notes.id]: 'Long multi-line note here.',
+    },
+  });
+  assert.strictEqual(ok.status, 201);
+  assert.strictEqual(ok.json.custom[email.id], 'edsger2@example.com');
+  assert.strictEqual(ok.json.custom[url.id], 'https://example.com');
+
+  const badEmail = await api('POST', '/api/contacts', { firstName: 'X', lastName: 'Y', email: 'xy1@example.com', custom: { [email.id]: 'not-an-email' } });
+  assert.strictEqual(badEmail.status, 400);
+
+  const badUrl = await api('POST', '/api/contacts', { firstName: 'X', lastName: 'Y', email: 'xy2@example.com', custom: { [url.id]: 'ftp://nope' } });
+  assert.strictEqual(badUrl.status, 400);
+
+  const badPhone = await api('POST', '/api/contacts', { firstName: 'X', lastName: 'Y', email: 'xy3@example.com', custom: { [phone.id]: 'abc' } });
+  assert.strictEqual(badPhone.status, 400);
+});

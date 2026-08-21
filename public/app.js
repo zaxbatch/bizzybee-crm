@@ -138,7 +138,7 @@ function customFieldForm(field) {
       <div class="full"><label>Label *</label><input name="label" required value="${esc(field?.label || '')}" placeholder="e.g. LinkedIn URL, Lead Source, Founded…" /></div>
       <div class="full"><label>Type</label>
         <select name="type">
-          ${['text', 'number', 'date', 'select', 'checkbox'].map((t) => `<option ${field?.type === t ? 'selected' : ''} value="${t}">${t}</option>`).join('')}
+          ${['text', 'textarea', 'email', 'url', 'phone', 'number', 'date', 'select', 'checkbox'].map((t) => `<option ${field?.type === t ? 'selected' : ''} value="${t}">${t}</option>`).join('')}
         </select></div>
       <div class="full cf-options" ${field?.type === 'select' ? '' : 'style="display:none"'}>
         <label>Options <span class="opt">(one per line — for dropdowns)</span></label>
@@ -174,6 +174,10 @@ function customInputHtml(f, value) {
   switch (f.type) {
     case 'number': return `<div>${label}<input name="${id}" type="number" value="${esc(value || '')}" /></div>`;
     case 'date': return `<div>${label}<input name="${id}" type="date" value="${esc(value || '')}" /></div>`;
+    case 'email': return `<div>${label}<input name="${id}" type="email" value="${esc(value || '')}" placeholder="name@example.com" /></div>`;
+    case 'url': return `<div>${label}<input name="${id}" type="url" value="${esc(value || '')}" placeholder="https://…" /></div>`;
+    case 'phone': return `<div>${label}<input name="${id}" type="tel" value="${esc(value || '')}" /></div>`;
+    case 'textarea': return `<div class="full">${label}<textarea name="${id}" rows="3">${esc(value || '')}</textarea></div>`;
     case 'select': {
       const opts = (f.options || []).map((o) => `<option ${o === value ? 'selected' : ''}>${esc(o)}</option>`).join('');
       return `<div>${label}<select name="${id}"><option value="">—</option>${opts}</select></div>`;

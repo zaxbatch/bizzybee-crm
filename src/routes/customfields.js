@@ -3,7 +3,7 @@
 const express = require('express');
 const { getPlan } = require('../plans');
 
-const FIELD_TYPES = ['text', 'number', 'date', 'select', 'checkbox'];
+const FIELD_TYPES = ['text', 'textarea', 'email', 'url', 'phone', 'number', 'date', 'select', 'checkbox'];
 const MAX_LABEL = 60;
 
 /** All custom field definitions owned by a user, sorted by creation. */
@@ -41,6 +41,26 @@ function validateCustomValues(db, userId, custom) {
         return { ok: false, error: `Custom field "${def.label}" must be one of: ${options.join(', ')}` };
       }
       cleaned[key] = String(raw);
+    } else if (def.type === 'email') {
+      const v = String(raw).trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+        return { ok: false, error: `Custom field "${def.label}" must be a valid email` };
+      }
+      cleaned[key] = v;
+    } else if (def.type === 'url') {
+      const v = String(raw).trim();
+      if (!/^https?:\/\/[^\s]+$/i.test(v)) {
+        return { ok: false, error: `Custom field "${def.label}" must be a valid URL (https://…)` };
+      }
+      cleaned[key] = v;
+    } else if (def.type === 'phone') {
+      const v = String(raw).trim();
+      if (!/^[+()\-.\d\s]{7,20}$/.test(v)) {
+        return { ok: false, error: `Custom field "${def.label}" must be a valid phone number` };
+      }
+      cleaned[key] = v;
+    } else if (def.type === 'textarea') {
+      cleaned[key] = String(raw).slice(0, 2000);
     } else {
       cleaned[key] = String(raw).slice(0, 500);
     }
