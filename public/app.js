@@ -183,6 +183,72 @@ function customInputHtml(f, value) {
   }
 }
 
+/* ============================ Team ============================ */
+
+async function renderTeam(el) {
+  let data;
+  try {
+    data = await api('GET', '/api/team');
+  } catch (err) {
+    el.innerHTML = `<div class="empty">⚠️ ${esc(err.message)}</div>`;
+    return;
+  }
+  const isOwner = !currentUser || currentUser.role !== 'member';
+  const { members, limit, usage } = data;
+  el.innerHTML = `
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Team Members (${usage}${limit !== 'unlimited' ? ' / ' + limit : ''})</h2>
+        <div class="panel-actions">${isOwner ? '<button class="btn btn-primary btn-sm" data-new-member>+ Add Member</button>' : ''}</div>
+      </div>
+      ${isOwner ? '' : '<div class="empty" style="padding:14px;font-size:13px;">You are a team member — the account owner manages the team.</div>'}
+      ${members.length ? `
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Joined</th>${isOwner ? '<th></th>' : ''}</tr></thead>
+          <tbody>
+            ${members.map((m) => `
+              <tr>
+                <td><strong>${esc(m.name)}</strong></td>
+                <td><a href="mailto:${esc(m.email)}">${esc(m.email)}</a></td>
+                <td>${fmtDate(m.createdAt)}</td>
+                ${isOwner ? `<td class="row-actions"><button class="btn btn-danger btn-sm" data-del-member="${esc(m.id)}">Remove</button></td>` : ''}
+              </tr>`).join('')}
+          </tbody>
+        </table>` : '<div class="empty">No team members yet — add your first one.</div>'}
+    </div>`;
+
+  el.querySelector('[data-new-member]')?.addEventListener('click', memberForm);
+  el.querySelectorAll('[data-del-member]').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Remove this team member? They will lose access to the workspace.')) return;
+    try {
+      await api('DELETE', '/api/team/members/' + b.dataset.delMember);
+      toast('Team member removed');
+      render();
+    } catch (err) { toast(err.message, true); }
+  }));
+}
+
+function memberForm() {
+  openModal('Add Team Member', `
+    <div class="form-grid">
+      <div class="full"><label>Name *</label><input name="name" required placeholder="Jane Doe" /></div>
+      <div class="full"><label>Email *</label><input name="email" type="email" required placeholder="jane@company.com" /></div>
+      <div class="full"><label>Temporary password * <span class="opt">(min 8 characters — they can change it later)</span></label><input name="password" type="password" required autocomplete="new-password" /></div>
+    </div>`);
+  $('#modalForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try {
+      await api('POST', '/api/team/members', {
+        name: fd.get('name'), email: fd.get('email'), password: fd.get('password'),
+      });
+      toast('Team member added — share their email + password to log in.');
+      closeModal();
+      render();
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
 function openUpgradeModal() {
   if (!accountInfo) return;
   const currentId = accountInfo.plan.id;
@@ -681,7 +747,7 @@ function enterApp(data) {
 
 /* ============================ Navigation ============================ */
 
-const VIEWS = ['dashboard', 'contacts', 'companies', 'deals', 'activities', 'customfields'];
+const VIEWS = ['dashboard', 'contacts', 'companies', 'deals', 'activities', 'customfields', 'team'];
 let currentView = 'dashboard';
 
 function setActiveNav(view) {
@@ -705,6 +771,7 @@ async function render() {
     else if (currentView === 'deals') await renderDeals(el);
     else if (currentView === 'activities') await renderActivities(el);
     else if (currentView === 'customfields') await renderCustomFields(el);
+    else if (currentView === 'team') await renderTeam(el);
   } catch (err) {
     el.innerHTML = `<div class="empty">⚠️ ${esc(err.message)}</div>`;
   }

@@ -29,7 +29,8 @@ function accountRouter(db, options = {}) {
         limits: {
           contacts: jsonLimit(plan.limits.contacts),
           pipelines: jsonLimit(plan.limits.pipelines),
-          customFields: jsonLimit(plan.limits.customFields)
+          customFields: jsonLimit(plan.limits.customFields),
+          members: jsonLimit(plan.limits.members),
         },
         features: plan.features
       },
@@ -39,7 +40,8 @@ function accountRouter(db, options = {}) {
         limits: {
           contacts: jsonLimit(p.limits.contacts),
           pipelines: jsonLimit(p.limits.pipelines),
-          customFields: jsonLimit(p.limits.customFields)
+          customFields: jsonLimit(p.limits.customFields),
+          members: jsonLimit(p.limits.members),
         },
         features: p.features
       })),

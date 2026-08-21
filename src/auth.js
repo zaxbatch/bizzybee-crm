@@ -33,7 +33,7 @@ function newToken() {
 function publicUser(user) {
   return {
     id: user.id, name: user.name || '', email: user.email, phone: user.phone || '',
-    plan: getPlanId(user), createdAt: user.createdAt
+    plan: getPlanId(user), role: user.workspaceOwnerId ? 'member' : 'owner', createdAt: user.createdAt
   };
 }
 
@@ -53,6 +53,10 @@ function bearerToken(req) {
 /**
  * Middleware: requires a valid, unexpired session token and attaches
  * req.userId / req.user for downstream routes.
+ *
+ * Team members share the owner's workspace: data scoping (req.userId), the
+ * plan, and the workspace identity (req.user) all resolve to the owner;
+ * req.member is the person who actually logged in (for display).
  */
 function requireAuth(db) {
   return (req, res, next) => {
@@ -62,8 +66,11 @@ function requireAuth(db) {
       : null;
     const user = session ? db.get('users', session.userId) : null;
     if (!user) return res.status(401).json({ error: 'Authentication required' });
-    req.userId = user.id;
-    req.user = user;
+    const owner = user.workspaceOwnerId ? db.get('users', user.workspaceOwnerId) : user;
+    if (!owner) return res.status(401).json({ error: 'Workspace no longer exists' });
+    req.member = user;
+    req.userId = owner.id;
+    req.user = owner;
     next();
   };
 }
@@ -126,7 +133,7 @@ function authRouter(db, hubspot) {
   });
 
   // GET /api/auth/me — current user (used by the UI on page load).
-  router.get('/me', requireAuth(db), (req, res) => res.json({ user: publicUser(req.user) }));
+  router.get('/me', requireAuth(db), (req, res) => res.json({ user: publicUser(req.member || req.user) }));
 
   // POST /api/auth/logout — invalidate the current session token.
   router.post('/logout', requireAuth(db), (req, res) => {
@@ -178,4 +185,4 @@ function authRouter(db, hubspot) {
   return router;
 }
 
-module.exports = { authRouter, requireAuth };
+module.exports = { authRouter, requireAuth, hashPassword };

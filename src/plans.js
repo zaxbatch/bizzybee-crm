@@ -24,7 +24,7 @@ const PLANS = {
     id: 'free',
     name: 'Free',
     priceMonthly: 0,
-    limits: { contacts: 1000, pipelines: 5, customFields: 0 },
+    limits: { contacts: 1000, pipelines: 5, customFields: 0, members: 1 },
     features: {
       api: false,
       whiteLabel: false,
@@ -37,7 +37,7 @@ const PLANS = {
     id: 'pro',
     name: 'Pro',
     priceMonthly: 19,
-    limits: { contacts: Infinity, pipelines: 20, customFields: 50 },
+    limits: { contacts: Infinity, pipelines: 20, customFields: 50, members: 5 },
     features: {
       api: true,
       whiteLabel: false,
@@ -50,7 +50,7 @@ const PLANS = {
     id: 'business',
     name: 'Business',
     priceMonthly: 49,
-    limits: { contacts: Infinity, pipelines: Infinity, customFields: Infinity },
+    limits: { contacts: Infinity, pipelines: Infinity, customFields: Infinity, members: Infinity },
     features: {
       api: 'full',
       whiteLabel: true,
@@ -85,7 +85,9 @@ function usage(db, userId) {
   // allowance is pre-wired for the multi-pipeline feature.
   const pipelines = 1;
   const customFields = db.allFor('custom_fields', userId).length;
-  return { contacts, pipelines, customFields };
+  // Team members = users linked to this workspace (ownerId == the owner user).
+  const members = db.all('users').filter((u) => u.workspaceOwnerId === userId).length;
+  return { contacts, pipelines, customFields, members };
 }
 
 /**

@@ -73,7 +73,7 @@ test('GET /api/account returns plan, limits, usage and prices', async () => {
   assert.strictEqual(json.plan.id, 'free');
   assert.strictEqual(json.plan.priceMonthly, 0);
   assert.strictEqual(json.plan.limits.contacts, 1000);
-  assert.deepStrictEqual(json.usage, { contacts: 0, pipelines: 1, customFields: 0 });
+  assert.deepStrictEqual(json.usage, { contacts: 0, pipelines: 1, customFields: 0, members: 0 });
   assert.strictEqual(json.prices.pro, 19);
   assert.strictEqual(json.prices.business, 49);
 });
