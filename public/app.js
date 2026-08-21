@@ -303,10 +303,8 @@ async function submitPlanChange(e) {
     toast(err.message, true);
   }
 }
-if (!window._planHandlerAttached) {
-  window._planHandlerAttached = true;
-  $('#modalForm').addEventListener('submit', submitPlanChange);
-}
+// openModal replaces the form node, so every open starts with zero listeners.
+$('#modalForm').addEventListener('submit', submitPlanChange);
 
 const STAGES = ['lead', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
 const STAGE_LABELS = { lead: 'Lead', qualified: 'Qualified', proposal: 'Proposal', negotiation: 'Negotiation', won: 'Won', lost: 'Lost' };
@@ -1375,6 +1373,13 @@ $('#globalSearch').addEventListener('input', (e) => {
 /* ============================ Modal ============================ */
 
 function openModal(title, formHtml) {
+  // Replace the form element with a fresh clone so no submit listeners from a
+  // previous modal survive — otherwise saving fires the request multiple times.
+  const oldForm = $('#modalForm');
+  if (oldForm) {
+    const fresh = oldForm.cloneNode(false);
+    oldForm.replaceWith(fresh);
+  }
   $('#modalTitle').textContent = title;
   $('#modalForm').innerHTML = `${formHtml}<div class="form-actions">
     <button type="button" class="btn btn-ghost" id="modalCancel">Cancel</button>
