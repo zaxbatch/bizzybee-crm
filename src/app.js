@@ -32,8 +32,8 @@ function createApp(options = {}) {
 
   if (options.log !== false) {
     console.log(hubspot
-      ? '  HubSpot sign-up sync: ENABLED — new accounts are added to your HubSpot CRM'
-      : '  HubSpot sign-up sync: DISABLED — set HUBSPOT_ACCESS_TOKEN to enable');
+      ? '  CRM sign-up sync: ENABLED — new accounts are added to your CRM'
+      : '  CRM sign-up sync: DISABLED — set HUBSPOT_ACCESS_TOKEN to enable');
   }
 
   const app = express();

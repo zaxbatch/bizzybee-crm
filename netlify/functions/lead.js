@@ -24,7 +24,7 @@ exports.handler = async (event) => {
 
   const token = process.env.HUBSPOT_ACCESS_TOKEN || '';
   if (!token) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'HubSpot not configured on this site' }) };
+    return { statusCode: 500, body: JSON.stringify({ error: 'Sign-up service not configured on this site' }) };
   }
 
   const email = String(body.email || '').trim().toLowerCase();
@@ -69,7 +69,7 @@ exports.handler = async (event) => {
   if (!res.ok) {
     return {
       statusCode: 502,
-      body: JSON.stringify({ error: (data && data.message) || 'HubSpot sync failed' })
+      body: JSON.stringify({ error: (data && data.message) || 'Could not save your sign-up' })
     };
   }
   return { statusCode: 201, body: JSON.stringify({ ok: true, id: data.id }) };

@@ -26,7 +26,7 @@ Environment variables (never committed — set in `.env` locally / Netlify env v
 
 | Variable | Purpose |
 |---|---|
-| `HUBSPOT_ACCESS_TOKEN` | Sign-ups are synced to the Z Dot LLC HubSpot portal |
+| `HUBSPOT_ACCESS_TOKEN` | Sign-ups are synced to the Z Dot LLC CRM |
 | `NETLIFY_AUTH_TOKEN` / `NETLIFY_AUTH_TOKEN_ZDOT` | Blob-store access + deploys |
 | `NETLIFY_SITE_ID` | Blob-store scope (set on the site by the deploy script) |
 
