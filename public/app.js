@@ -749,7 +749,7 @@ function enterApp(data) {
 
 /* ============================ Navigation ============================ */
 
-const VIEWS = ['dashboard', 'contacts', 'companies', 'deals', 'activities', 'customfields', 'team'];
+const VIEWS = ['dashboard', 'contacts', 'companies', 'deals', 'activities', 'team', 'customfields'];
 let currentView = 'dashboard';
 
 function setActiveNav(view) {
