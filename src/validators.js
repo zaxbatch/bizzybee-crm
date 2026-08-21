@@ -70,6 +70,7 @@ function validateContact(body, { partial = false } = {}) {
   }
   push(str(body.phone, 'phone'));
   push(str(body.title, 'title'));
+  push(str(body.address, 'address'));
   push(oneOf(body.status, CONTACT_STATUSES, 'status'));
   push(str(body.companyId, 'companyId'));
   push(str(body.notes, 'notes', { max: 2000 }));
@@ -87,6 +88,7 @@ function validateCompany(body, { partial = false } = {}) {
   push(str(body.name, 'name', { required: !partial }));
   push(str(body.industry, 'industry'));
   push(str(body.website, 'website'));
+  push(str(body.address, 'address'));
   push(str(body.size, 'size'));
   push(str(body.notes, 'notes', { max: 2000 }));
   return errors;

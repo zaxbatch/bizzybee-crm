@@ -282,12 +282,12 @@ function parseCsvText(text) {
 }
 
 const IMPORT_FIELDS = {
-  contacts: ['firstName', 'lastName', 'name', 'email', 'phone', 'title', 'company', 'status', 'tags', 'notes'],
-  companies: ['name', 'industry', 'size', 'website', 'notes']
+  contacts: ['firstName', 'lastName', 'name', 'email', 'phone', 'title', 'address', 'company', 'status', 'tags', 'notes'],
+  companies: ['name', 'industry', 'size', 'website', 'address', 'notes']
 };
 const IMPORT_LABELS = {
   firstName: 'First name', lastName: 'Last name', name: 'Name', email: 'Email', phone: 'Phone',
-  title: 'Title', company: 'Company', status: 'Status', tags: 'Tags', notes: 'Notes',
+  title: 'Title', address: 'Address', company: 'Company', status: 'Status', tags: 'Tags', notes: 'Notes',
   industry: 'Industry', size: 'Size', website: 'Website'
 };
 const IMPORT_ALIASES = {
@@ -297,6 +297,7 @@ const IMPORT_ALIASES = {
   email: ['email', 'emailaddress', 'emailaddress2'],
   phone: ['phone', 'phonenumber', 'mobile', 'telephone'],
   title: ['title', 'jobtitle', 'position'],
+  address: ['address', 'street', 'location'],
   company: ['company', 'companyname', 'organization'],
   status: ['status'],
   tags: ['tags', 'tag'],
@@ -796,7 +797,7 @@ async function renderContacts(el) {
           ${contacts.map((c) => `
             <tr>
               <td class="sel-col"><input type="checkbox" data-sel="${esc(c.id)}" /></td>
-              <td><strong>${esc(c.firstName)} ${esc(c.lastName)}</strong></td>
+              <td><strong>${esc(c.firstName)} ${esc(c.lastName)}</strong>${c.address ? `<div class="meta">${esc(c.address)}</div>` : ''}</td>
               <td>${esc(c.title || '—')}</td>
               <td><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></td>
               <td>${esc(c.companyName || '—')}</td>
@@ -843,6 +844,7 @@ function contactForm(contact, companies) {
       <div class="full"><label>Email *</label><input name="email" type="email" required value="${esc(contact?.email || '')}" /></div>
       <div><label>Phone</label><input name="phone" value="${esc(contact?.phone || '')}" /></div>
       <div><label>Title</label><input name="title" value="${esc(contact?.title || '')}" /></div>
+      <div class="full"><label>Address</label><input name="address" value="${esc(contact?.address || '')}" /></div>
       <div><label>Company</label>
         ${typeaheadHtml('companyId', companyOptions, contact?.companyId || null, 'Search companies…')}</div>
       <div><label>Status</label>
@@ -858,7 +860,7 @@ function contactForm(contact, companies) {
     const fd = new FormData(e.target);
     const payload = {
       firstName: fd.get('firstName'), lastName: fd.get('lastName'), email: fd.get('email'),
-      phone: fd.get('phone'), title: fd.get('title'), companyId: fd.get('companyId') || null,
+      phone: fd.get('phone'), title: fd.get('title'), address: fd.get('address'), companyId: fd.get('companyId') || null,
       status: fd.get('status'), notes: fd.get('notes'),
       tags: String(fd.get('tags')).split(',').map((t) => t.trim()).filter(Boolean)
     };
@@ -893,7 +895,7 @@ async function renderCompanies(el) {
           ${companies.map((c) => `
             <tr>
               <td class="sel-col"><input type="checkbox" data-sel="${esc(c.id)}" /></td>
-              <td><strong>${esc(c.name)}</strong></td>
+              <td><strong>${esc(c.name)}</strong>${c.address ? `<div class="meta">${esc(c.address)}</div>` : ''}</td>
               <td>${esc(c.industry || '—')}</td>
               <td>${esc(c.size || '—')}</td>
               <td>${c.contactCount}</td>
@@ -941,12 +943,13 @@ function companyForm(company) {
           ${['1-10', '11-50', '50-200', '200-500', '500-1000', '1000+'].map((s) => `<option ${company?.size === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select></div>
       <div class="full"><label>Website</label><input name="website" value="${esc(company?.website || '')}" /></div>
+      <div class="full"><label>Address</label><input name="address" value="${esc(company?.address || '')}" /></div>
       <div class="full"><label>Notes</label><textarea name="notes" rows="3">${esc(company?.notes || '')}</textarea></div>
     </div>`);
   $('#modalForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const payload = { name: fd.get('name'), industry: fd.get('industry'), size: fd.get('size'), website: fd.get('website'), notes: fd.get('notes') };
+    const payload = { name: fd.get('name'), industry: fd.get('industry'), size: fd.get('size'), website: fd.get('website'), address: fd.get('address'), notes: fd.get('notes') };
     try {
       if (isEdit) await api('PUT', `/api/companies/${company.id}`, payload);
       else await api('POST', '/api/companies', payload);

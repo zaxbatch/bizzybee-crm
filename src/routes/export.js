@@ -12,8 +12,8 @@ const { toCsv } = require('../csv');
  *   GET /api/export/activities.csv
  */
 
-const CONTACT_COLUMNS = ['firstName', 'lastName', 'email', 'phone', 'title', 'company', 'status', 'tags', 'notes', 'createdAt'];
-const COMPANY_COLUMNS = ['name', 'industry', 'size', 'website', 'notes', 'contactCount', 'dealCount', 'openPipeline', 'createdAt'];
+const CONTACT_COLUMNS = ['firstName', 'lastName', 'email', 'phone', 'title', 'address', 'company', 'status', 'tags', 'notes', 'createdAt'];
+const COMPANY_COLUMNS = ['name', 'industry', 'size', 'website', 'address', 'notes', 'contactCount', 'dealCount', 'openPipeline', 'createdAt'];
 const DEAL_COLUMNS = ['title', 'amount', 'stage', 'company', 'contact', 'expectedClose', 'notes', 'createdAt'];
 const ACTIVITY_COLUMNS = ['type', 'subject', 'body', 'contact', 'happenedAt', 'createdAt'];
 
@@ -41,6 +41,7 @@ function exportRouter(db) {
         email: c.email,
         phone: c.phone,
         title: c.title,
+        address: c.address,
         company: company ? company.name : '',
         status: c.status || '',
         tags: tagList(c.tags),
@@ -61,6 +62,7 @@ function exportRouter(db) {
         industry: c.industry,
         size: c.size,
         website: c.website,
+        address: c.address,
         notes: c.notes,
         contactCount: contacts.length,
         dealCount: deals.length,

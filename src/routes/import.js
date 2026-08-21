@@ -26,12 +26,12 @@ const { getPlan } = require('../plans');
 
 const FIELD_LABELS = {
   firstName: 'First name', lastName: 'Last name', name: 'Name', email: 'Email',
-  phone: 'Phone', title: 'Title', company: 'Company', status: 'Status',
+  phone: 'Phone', title: 'Title', address: 'Address', company: 'Company', status: 'Status',
   tags: 'Tags', notes: 'Notes', industry: 'Industry', size: 'Size', website: 'Website'
 };
 
-const CONTACT_FIELDS = ['firstName', 'lastName', 'name', 'email', 'phone', 'title', 'company', 'status', 'tags', 'notes'];
-const COMPANY_FIELDS = ['name', 'industry', 'size', 'website', 'notes'];
+const CONTACT_FIELDS = ['firstName', 'lastName', 'name', 'email', 'phone', 'title', 'address', 'company', 'status', 'tags', 'notes'];
+const COMPANY_FIELDS = ['name', 'industry', 'size', 'website', 'address', 'notes'];
 
 /** Resolve { field: header } into { field: columnIndex } against headers (lowercased). */
 function buildColumns(headers, mapping) {
@@ -85,6 +85,7 @@ function guessContactMapping(headers) {
   pick('email', ['email', 'emailaddress', 'email address', 'e-mail']);
   pick('phone', ['phone', 'phonenumber', 'phone number', 'mobile']);
   pick('title', ['title', 'jobtitle', 'job title', 'position']);
+  pick('address', ['address', 'street', 'location']);
   pick('company', ['company', 'companyname', 'company name', 'organization']);
   pick('status', ['status']);
   pick('tags', ['tags', 'tag']);
@@ -102,6 +103,7 @@ function guessCompanyMapping(headers) {
   pick('industry', ['industry']);
   pick('size', ['size', 'companysize']);
   pick('website', ['website', 'url']);
+  pick('address', ['address', 'street', 'location']);
   pick('notes', ['notes', 'note']);
   return mapping;
 }
@@ -170,6 +172,7 @@ function importRouter(db) {
         email: get('email'),
         phone: get('phone'),
         title: get('title'),
+        address: get('address'),
         status: get('status') || 'lead',
         tags: get('tags').split(/[;,]/).map((t) => t.trim()).filter(Boolean),
         notes: get('notes'),
@@ -238,6 +241,7 @@ function importRouter(db) {
         industry: get('industry'),
         size: get('size'),
         website: get('website'),
+        address: get('address'),
         notes: get('notes')
       };
 

@@ -142,15 +142,18 @@ test('a new user starts with an empty workspace', async () => {
 
 test('full CRUD lifecycle for companies, contacts, deals, activities', async () => {
   // Create company
-  const company = await api('POST', '/api/companies', { name: 'Acme Corp', industry: 'Software' });
+  const company = await api('POST', '/api/companies', { name: 'Acme Corp', industry: 'Software', address: '1 Main St, Springfield, IL 62701' });
   assert.strictEqual(company.status, 201);
   assert.strictEqual(company.json.ownerId, (await api('GET', '/api/auth/me')).json.user.id);
+  assert.strictEqual(company.json.address, '1 Main St, Springfield, IL 62701');
 
   // Create contact linked to the company
   const contact = await api('POST', '/api/contacts', {
-    firstName: 'Dana', lastName: 'Lee', email: 'dana@acme.example', companyId: company.json.id, status: 'lead'
+    firstName: 'Dana', lastName: 'Lee', email: 'dana@acme.example', companyId: company.json.id, status: 'lead',
+    address: '200 Riverside Dr, Springfield, IL 62704'
   });
   assert.strictEqual(contact.status, 201);
+  assert.strictEqual(contact.json.address, '200 Riverside Dr, Springfield, IL 62704');
 
   // Read + update contact
   const got = await api('GET', `/api/contacts/${contact.json.id}`);
@@ -266,10 +269,10 @@ test('CSV export requires authentication', async () => {
 
 test('CSV export returns scoped, properly escaped data for each entity', async () => {
   // Seed a company/contact/deal/activity with a comma + quote in the name to test escaping.
-  const company = await api('POST', '/api/companies', { name: 'Acme, Inc. "HQ"', industry: 'Software' });
+  const company = await api('POST', '/api/companies', { name: 'Acme, Inc. "HQ"', industry: 'Software', address: '1 Main St, Springfield, IL 62701' });
   const contact = await api('POST', '/api/contacts', {
     firstName: 'Dana', lastName: 'Lee', email: 'dana@acme.example', companyId: company.json.id,
-    status: 'lead', tags: ['enterprise', 'key account'], notes: 'Multi\nline note'
+    status: 'lead', tags: ['enterprise', 'key account'], notes: 'Multi\nline note', address: '200 Riverside Dr, Springfield, IL 62704'
   });
   const deal = await api('POST', '/api/deals', { title: 'Annual License', amount: 48000, stage: 'qualified', companyId: company.json.id, contactId: contact.json.id });
   await api('POST', '/api/activities', { type: 'call', subject: 'Intro call', body: 'Went well', contactId: contact.json.id });
@@ -279,16 +282,18 @@ test('CSV export returns scoped, properly escaped data for each entity', async (
   assert.strictEqual(contacts.status, 200);
   assert.match(contacts.type, /text\/csv/);
   const contactLines = contacts.text.trim().split('\r\n');
-  assert.strictEqual(contactLines[0], 'firstName,lastName,email,phone,title,company,status,tags,notes,createdAt');
+  assert.strictEqual(contactLines[0], 'firstName,lastName,email,phone,title,address,company,status,tags,notes,createdAt');
   assert.ok(contactLines.some((l) => l.includes('"Acme, Inc. ""HQ"""')));
+  assert.ok(contactLines.some((l) => l.includes('200 Riverside Dr, Springfield, IL 62704')));
   assert.ok(contactLines.some((l) => l.includes('enterprise; key account')));
   assert.ok(contactLines.some((l) => l.includes('"Multi\nline note"')));
 
   // companies.csv includes derived counts
   const companies = await csv('GET', '/api/export/companies.csv');
   assert.strictEqual(companies.status, 200);
-  assert.strictEqual(companies.text.trim().split('\r\n')[0], 'name,industry,size,website,notes,contactCount,dealCount,openPipeline,createdAt');
+  assert.strictEqual(companies.text.trim().split('\r\n')[0], 'name,industry,size,website,address,notes,contactCount,dealCount,openPipeline,createdAt');
   assert.ok(companies.text.includes('"Acme, Inc. ""HQ"""'));
+  assert.ok(companies.text.includes('1 Main St, Springfield, IL 62701'));
 
   // deals.csv joins names
   const deals = await csv('GET', '/api/export/deals.csv');

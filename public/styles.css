@@ -106,6 +106,9 @@ tr:hover td { background: #fafbfe; }
 .deal-card .amount { font-size: 14px; color: var(--primary-dark); font-weight: 700; margin: 4px 0; }
 .deal-card .meta { font-size: 12px; color: var(--muted); }
 
+/* Small muted subtitle (e.g. address under a name) */
+.meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
 /* Activities */
 .activity-list { padding: 6px 0; }
 .activity-item { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; gap: 12px; align-items: flex-start; }
