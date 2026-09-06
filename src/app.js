@@ -6,6 +6,8 @@ const { Db } = require('./db');
 const config = require('./config');
 const { authRouter, requireAuth } = require('./auth');
 const { createHubspotClient } = require('./hubspot');
+const { createReynaClient } = require('./ai');
+const { aiRouter } = require('./routes/ai');
 const contactsRouter = require('./routes/contacts');
 const companiesRouter = require('./routes/companies');
 const dealsRouter = require('./routes/deals');
@@ -33,10 +35,21 @@ function createApp(options = {}) {
     ? null
     : (options.hubspot || createHubspotClient({ token: config.hubspot.token }));
 
+  // Reyna — the AI assistant. Tests pass { ai: false } (or an injectable stub
+  // client / fetchImpl); production reads OPENAI_API_KEY from the environment.
+  const reyna = options.ai === false
+    ? null
+    : (options.ai && typeof options.ai.complete === 'function'
+        ? options.ai
+        : createReynaClient(options.ai || {}));
+
   if (options.log !== false) {
     console.log(hubspot
       ? '  CRM sign-up sync: ENABLED — new accounts are added to your CRM'
       : '  CRM sign-up sync: DISABLED — set HUBSPOT_ACCESS_TOKEN to enable');
+    console.log(reyna && reyna.enabled
+      ? `  Reyna AI: ENABLED (${reyna.model}) — Pro & Business workspaces get credits`
+      : '  Reyna AI: DISABLED — set OPENAI_API_KEY to enable');
   }
 
   const app = express();
@@ -65,6 +78,7 @@ function createApp(options = {}) {
   app.use('/api/account', accountRouter(db, { adminKey: options.adminKey || config.adminKey }));
   app.use('/api/custom-fields', customfieldsRouter(db));
   app.use('/api/team', teamRouter(db));
+  app.use('/api/ai', aiRouter(db, { client: reyna, creditOverrides: options.aiCreditOverrides }));
   app.use('/api/contacts', contactsRouter(db));
   app.use('/api/companies', companiesRouter(db));
   app.use('/api/deals', dealsRouter(db));

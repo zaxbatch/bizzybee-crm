@@ -10,6 +10,7 @@
  *   Seats: 1 (you)      5                         7,500
  *   Roles & permissions no (solo)                 Admin / Editor / Viewer with customizable privileges
  *   Custom subcategories 0                        2                         Unlimited
+ *   Reyna (AI): no       300 credits/mo           5,000 credits/mo
  *   API: no             yes                       full access
  *   White-label: no     no                        yes (rebrand + custom domain)
  *   Priority support: no                          yes (1–4h, dedicated queue)
@@ -21,10 +22,14 @@
  * people, Business scales to 7,500. Custom subcategories (Sales, Marketing,
  * HR, … beyond the built-in set) are capped by `limits.subcategories`.
  *
+ * Reyna — the AI assistant — is a Pro/Business feature (`features.ai`); the
+ * allowance `limits.aiCredits` is a per-workspace monthly credit cap that is
+ * enforced server-side and resets each calendar month.
+ *
  * This file is the single source of truth for plans. Limits are enforced
  * server-side wherever the feature exists today (contacts, seats, custom
- * fields, subcategories). The API, app UI and landing page all read from
- * here so pricing stays in sync.
+ * fields, subcategories, AI credits). The API, app UI and landing page all
+ * read from here so pricing stays in sync.
  */
 
 const PLANS = {
@@ -32,42 +37,45 @@ const PLANS = {
     id: 'free',
     name: 'Free',
     priceMonthly: 0,
-    limits: { contacts: 1000, pipelines: 5, customFields: 0, seats: 1, subcategories: 0 },
+    limits: { contacts: 1000, pipelines: 5, customFields: 0, seats: 1, subcategories: 0, aiCredits: 0 },
     features: {
       api: false,
       whiteLabel: false,
       prioritySupport: false,
       workflow: 'none',
       reports: 'basic',
-      teams: false
+      teams: false,
+      ai: false
     }
   },
   pro: {
     id: 'pro',
     name: 'Pro',
     priceMonthly: 19,
-    limits: { contacts: Infinity, pipelines: 20, customFields: 50, seats: 5, subcategories: 2 },
+    limits: { contacts: Infinity, pipelines: 20, customFields: 50, seats: 5, subcategories: 2, aiCredits: 300 },
     features: {
       api: true,
       whiteLabel: false,
       prioritySupport: false,
       workflow: 'basic',
       reports: 'custom',
-      teams: true
+      teams: true,
+      ai: true
     }
   },
   business: {
     id: 'business',
     name: 'Business',
     priceMonthly: 49,
-    limits: { contacts: Infinity, pipelines: Infinity, customFields: Infinity, seats: 7500, subcategories: Infinity },
+    limits: { contacts: Infinity, pipelines: Infinity, customFields: Infinity, seats: 7500, subcategories: Infinity, aiCredits: 5000 },
     features: {
       api: 'full',
       whiteLabel: true,
       prioritySupport: true,
       workflow: 'advanced',
       reports: 'advanced-ai',
-      teams: true
+      teams: true,
+      ai: true
     }
   }
 };

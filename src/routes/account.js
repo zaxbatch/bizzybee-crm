@@ -10,7 +10,7 @@ function jsonLimit(v) {
 
 /** Every serializable plan limit, in display order. */
 function limitsJson(limits) {
-  const pick = ['contacts', 'pipelines', 'customFields', 'seats', 'subcategories'];
+  const pick = ['contacts', 'pipelines', 'customFields', 'seats', 'subcategories', 'aiCredits'];
   return Object.fromEntries(pick.map((k) => [k, jsonLimit(limits[k])]));
 }
 

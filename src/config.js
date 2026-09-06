@@ -34,5 +34,13 @@ module.exports = {
   hubspot: {
     // Sign-ups are pushed to the Z Dot LLC HubSpot portal as contacts.
     token: process.env.HUBSPOT_ACCESS_TOKEN || ''
+  },
+  ai: {
+    // Reyna — the AI assistant. Any OpenAI-compatible /chat/completions
+    // endpoint works (set OPENAI_BASE_URL to point elsewhere, e.g. Groq or a
+    // local server). The key is read server-side and never sent to the browser.
+    apiKey: process.env.OPENAI_API_KEY || process.env.REYNA_API_KEY || '',
+    baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    model: process.env.OPENAI_MODEL || 'gpt-4o-mini'
   }
 };
