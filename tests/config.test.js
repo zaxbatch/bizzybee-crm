@@ -4,9 +4,11 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
 
-// config.js reads env at require time, so each case re-requires it with a
-// fresh environment. Node's test runner isolates test files in their own
-// process, so env mutation here can't leak into the other suites.
+// config.js reads .env files + process.env at require time, so each case
+// re-requires it with a clean environment. The env-file loader is disabled so
+// the real bizzybee-crm/.env can't leak DeepSeek/OpenAI keys into these cases.
+process.env.BIZZYBEE_SKIP_ENV_FILES = '1';
+
 const CONFIG = path.join(__dirname, '..', 'src', 'config.js');
 const AI_ENV_KEYS = [
   'OPENAI_API_KEY', 'REYNA_API_KEY', 'DEEPSEEK_API_KEY',

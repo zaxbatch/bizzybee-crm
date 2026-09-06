@@ -241,7 +241,7 @@ test('real client parses completions through a stubbed OpenAI-compatible fetch',
       json: async () => ({ choices: [{ message: { content: 'Subject: Hello there\n\nThis is the body from the model.' } }] })
     };
   };
-  const { srv, url, dir } = await startServer({ ai: { apiKey: 'test-key', fetchImpl: fakeFetch }, aiCreditOverrides: CREDITS });
+  const { srv, url, dir } = await startServer({ ai: { apiKey: 'test-key', model: 'test-model', fetchImpl: fakeFetch }, aiCreditOverrides: CREDITS });
   try {
     const reg = await apiAt(url, 'POST', '/api/auth/register', { name: 'Wire', email: 'wire@test.dev', password: 'correct horse battery staple' });
     const tok = reg.json.token;

@@ -5,9 +5,13 @@ const path = require('path');
 
 /**
  * Minimal .env loader (no dependency). Reads KEY=VALUE lines from the given
- * file into process.env without overwriting values that are already set.
- * Falls back to the repo-root .env (one level above this project) so the
- * shared Z Dot LLC credentials are picked up when running locally.
+ * file into process.env without overwriting values that are already set
+ * (so variables exported in the shell always win).
+ *
+ * Load order — first loaded wins on overlaps:
+ *   1. this repo's own `.env`  (bizzybee-crm/.env — local/provider settings),
+ *   2. the workspace-level `.env` one level above the repo (shared Z Dot LLC
+ *      credentials such as HUBSPOT_ACCESS_TOKEN / NETLIFY tokens).
  */
 function loadEnvFile(file) {
   if (!file || !fs.existsSync(file)) return;
@@ -22,7 +26,12 @@ function loadEnvFile(file) {
   }
 }
 
-loadEnvFile(path.join(__dirname, '..', '..', '.env'));
+// Tests (tests/config.test.js) set BIZZYBEE_SKIP_ENV_FILES=1 to resolve the
+// provider matrix against a clean environment instead of the real .env files.
+if (process.env.BIZZYBEE_SKIP_ENV_FILES !== '1') {
+  loadEnvFile(path.join(__dirname, '..', '.env')); // this repo (project root)
+  loadEnvFile(path.join(__dirname, '..', '..', '.env')); // shared workspace creds
+}
 
 // ---- Reyna (AI) provider resolution -------------------------------------
 // Any OpenAI-compatible /chat/completions endpoint works. Key precedence:

@@ -878,10 +878,12 @@ function openUpgradeModal() {
     ${switchUi}`;
 
   openModal('Plans & Upgrade', formHtml);
+  // openModal replaces the form node (clearing every listener), so the plan
+  // switcher must bind fresh on each open — otherwise Save silently does nothing.
+  $('#modalForm').addEventListener('submit', submitPlanChange);
 }
 
-// Attached once (the generic modal is reused across views); the handler reads
-// the current DOM at submit time and ignores submissions from other modals.
+/** Switch the account plan (owner only; server re-checks). */
 async function submitPlanChange(e) {
   e.preventDefault();
   if (!$('#planSelect')) return;
@@ -897,8 +899,6 @@ async function submitPlanChange(e) {
     toast(err.message, true);
   }
 }
-// openModal replaces the form node, so every open starts with zero listeners.
-$('#modalForm').addEventListener('submit', submitPlanChange);
 
 const STAGES = ['lead', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
 const STAGE_LABELS = { lead: 'Lead', qualified: 'Qualified', proposal: 'Proposal', negotiation: 'Negotiation', won: 'Won', lost: 'Lost' };
@@ -1357,7 +1357,7 @@ function updateUIPermissions() {
     const v = b.dataset.view;
     const visible = v === 'team' ? true
       : v === 'customfields' ? can('manage.customFields')
-        : v === 'reyna' ? (aiReady() && can('data.view'))
+        : v === 'reyna' ? can('data.view')
           : dataViews.includes(v) ? can('data.view') : true;
     b.classList.toggle('hidden', !visible);
   });
