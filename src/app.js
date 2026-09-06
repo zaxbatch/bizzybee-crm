@@ -16,6 +16,7 @@ const importRouter = require('./routes/import');
 const accountRouter = require('./routes/account');
 const { customfieldsRouter } = require('./routes/customfields');
 const teamRouter = require('./routes/team');
+const { denied } = require('./permissions');
 
 /**
  * Builds and configures the Express application.
@@ -74,6 +75,7 @@ function createApp(options = {}) {
 
   // Global search across the authenticated user's contacts, companies and deals
   app.get('/api/search', (req, res) => {
+    if (!req.perms['data.view']) return denied(res, 'data.view');
     const q = String(req.query.q || '').trim().toLowerCase();
     if (!q) return res.json({ contacts: [], companies: [], deals: [] });
     const match = (values) => values.filter(Boolean).some((v) => String(v).toLowerCase().includes(q));

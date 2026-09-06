@@ -4,6 +4,8 @@ const express = require('express');
 const { validateContact } = require('../validators');
 const { contactLimitError } = require('../plans');
 const { validateCustomValues } = require('./customfields');
+const { denied } = require('../permissions');
+
 
 function idsOf(body) {
   const ids = Array.isArray(body && body.ids) ? body.ids : [];
@@ -15,6 +17,7 @@ function contactsRouter(db) {
 
   // GET /api/contacts?q=&companyId=&status=
   router.get('/', (req, res) => {
+    if (!req.perms['data.view']) return denied(res, 'data.view');
     const { q, companyId, status } = req.query;
     let list = db.allFor('contacts', req.userId);
     if (companyId) list = list.filter((c) => c.companyId === companyId);
@@ -36,6 +39,7 @@ function contactsRouter(db) {
   });
 
   router.post('/', (req, res) => {
+    if (!req.perms['data.create']) return denied(res, 'data.create');
     const errors = validateContact(req.body || {});
     if (errors.length) return res.status(400).json({ error: 'Validation failed', details: errors });
     const limitErr = contactLimitError(db, req.user);
@@ -54,6 +58,7 @@ function contactsRouter(db) {
 
   // POST /api/contacts/bulk-delete — delete many (open deals block a contact)
   router.post('/bulk-delete', (req, res) => {
+    if (!req.perms['data.delete']) return denied(res, 'data.delete');
     const ids = idsOf(req.body);
     if (!ids.length) return res.status(400).json({ error: 'No ids provided' });
     let deleted = 0;
@@ -71,6 +76,7 @@ function contactsRouter(db) {
   });
 
   router.get('/:id', (req, res) => {
+    if (!req.perms['data.view']) return denied(res, 'data.view');
     const contact = db.getFor('contacts', req.params.id, req.userId);
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
     const company = contact.companyId ? db.getFor('companies', contact.companyId, req.userId) : null;
@@ -80,6 +86,7 @@ function contactsRouter(db) {
   });
 
   router.put('/:id', (req, res) => {
+    if (!req.perms['data.edit']) return denied(res, 'data.edit');
     const existing = db.getFor('contacts', req.params.id, req.userId);
     if (!existing) return res.status(404).json({ error: 'Contact not found' });
     const errors = validateContact(req.body || {}, { partial: true });
@@ -96,6 +103,7 @@ function contactsRouter(db) {
   });
 
   router.delete('/:id', (req, res) => {
+    if (!req.perms['data.delete']) return denied(res, 'data.delete');
     const existing = db.getFor('contacts', req.params.id, req.userId);
     if (!existing) return res.status(404).json({ error: 'Contact not found' });
     const openDeals = db.allFor('deals', req.userId).filter((d) => d.contactId === req.params.id && d.stage !== 'won' && d.stage !== 'lost');

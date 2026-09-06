@@ -2,11 +2,14 @@
 
 const express = require('express');
 const { validateActivity } = require('../validators');
+const { denied } = require('../permissions');
+
 
 function activitiesRouter(db) {
   const router = express.Router();
 
   router.get('/', (req, res) => {
+    if (!req.perms['data.view']) return denied(res, 'data.view');
     const { contactId, type } = req.query;
     let list = db.allFor('activities', req.userId);
     if (contactId) list = list.filter((a) => a.contactId === contactId);
@@ -20,6 +23,7 @@ function activitiesRouter(db) {
   });
 
   router.post('/', (req, res) => {
+    if (!req.perms['data.create']) return denied(res, 'data.create');
     const errors = validateActivity(req.body || {});
     if (errors.length) return res.status(400).json({ error: 'Validation failed', details: errors });
     const body = req.body;
@@ -32,6 +36,7 @@ function activitiesRouter(db) {
 
   // POST /api/activities/bulk-delete
   router.post('/bulk-delete', (req, res) => {
+    if (!req.perms['data.delete']) return denied(res, 'data.delete');
     const ids = Array.isArray((req.body || {}).ids) ? (req.body || {}).ids.filter((i) => typeof i === 'string' && i) : [];
     if (!ids.length) return res.status(400).json({ error: 'No ids provided' });
     let deleted = 0;
@@ -45,12 +50,14 @@ function activitiesRouter(db) {
   });
 
   router.get('/:id', (req, res) => {
+    if (!req.perms['data.view']) return denied(res, 'data.view');
     const activity = db.getFor('activities', req.params.id, req.userId);
     if (!activity) return res.status(404).json({ error: 'Activity not found' });
     res.json(activity);
   });
 
   router.put('/:id', (req, res) => {
+    if (!req.perms['data.edit']) return denied(res, 'data.edit');
     const existing = db.getFor('activities', req.params.id, req.userId);
     if (!existing) return res.status(404).json({ error: 'Activity not found' });
     const errors = validateActivity(req.body || {}, { partial: true });
@@ -62,6 +69,7 @@ function activitiesRouter(db) {
   });
 
   router.delete('/:id', (req, res) => {
+    if (!req.perms['data.delete']) return denied(res, 'data.delete');
     if (!db.getFor('activities', req.params.id, req.userId)) return res.status(404).json({ error: 'Activity not found' });
     db.remove('activities', req.params.id);
     res.status(204).end();

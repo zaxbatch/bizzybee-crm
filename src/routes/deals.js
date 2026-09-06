@@ -3,11 +3,14 @@
 const express = require('express');
 const { validateDeal } = require('../validators');
 const { DEAL_STAGES } = require('../db');
+const { denied } = require('../permissions');
+
 
 function dealsRouter(db) {
   const router = express.Router();
 
   router.get('/', (req, res) => {
+    if (!req.perms['data.view']) return denied(res, 'data.view');
     const { stage, q } = req.query;
     let list = db.allFor('deals', req.userId);
     if (stage) list = list.filter((d) => d.stage === stage);
@@ -20,6 +23,7 @@ function dealsRouter(db) {
   });
 
   router.get('/stages', (req, res) => {
+    if (!req.perms['data.view']) return denied(res, 'data.view');
     res.json(DEAL_STAGES.map((stage) => {
       const deals = db.allFor('deals', req.userId).filter((d) => d.stage === stage);
       const total = deals.reduce((s, d) => s + Number(d.amount || 0), 0);
@@ -28,6 +32,7 @@ function dealsRouter(db) {
   });
 
   router.post('/', (req, res) => {
+    if (!req.perms['data.create']) return denied(res, 'data.create');
     const errors = validateDeal(req.body || {});
     if (errors.length) return res.status(400).json({ error: 'Validation failed', details: errors });
     const { contactId, companyId } = req.body;
@@ -39,6 +44,7 @@ function dealsRouter(db) {
 
   // POST /api/deals/bulk-delete
   router.post('/bulk-delete', (req, res) => {
+    if (!req.perms['data.delete']) return denied(res, 'data.delete');
     const ids = Array.isArray((req.body || {}).ids) ? (req.body || {}).ids.filter((i) => typeof i === 'string' && i) : [];
     if (!ids.length) return res.status(400).json({ error: 'No ids provided' });
     let deleted = 0;
@@ -52,12 +58,14 @@ function dealsRouter(db) {
   });
 
   router.get('/:id', (req, res) => {
+    if (!req.perms['data.view']) return denied(res, 'data.view');
     const deal = db.getFor('deals', req.params.id, req.userId);
     if (!deal) return res.status(404).json({ error: 'Deal not found' });
     res.json(decorate(db, deal, req.userId));
   });
 
   router.put('/:id', (req, res) => {
+    if (!req.perms['data.edit']) return denied(res, 'data.edit');
     const existing = db.getFor('deals', req.params.id, req.userId);
     if (!existing) return res.status(404).json({ error: 'Deal not found' });
     const errors = validateDeal(req.body || {}, { partial: true });
@@ -70,6 +78,7 @@ function dealsRouter(db) {
 
   // PATCH /api/deals/:id/stage — quick pipeline moves
   router.patch('/:id/stage', (req, res) => {
+    if (!req.perms['data.edit']) return denied(res, 'data.edit');
     const { stage } = req.body || {};
     if (!DEAL_STAGES.includes(stage)) {
       return res.status(400).json({ error: `stage must be one of: ${DEAL_STAGES.join(', ')}` });
@@ -80,6 +89,7 @@ function dealsRouter(db) {
   });
 
   router.delete('/:id', (req, res) => {
+    if (!req.perms['data.delete']) return denied(res, 'data.delete');
     if (!db.getFor('deals', req.params.id, req.userId)) return res.status(404).json({ error: 'Deal not found' });
     db.remove('deals', req.params.id);
     res.status(204).end();

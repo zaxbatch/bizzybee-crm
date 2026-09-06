@@ -4,6 +4,8 @@ const express = require('express');
 const { parseCsv } = require('../csv');
 const { getPlan } = require('../plans');
 const { defsFor } = require('./customfields');
+const { denied } = require('../permissions');
+
 
 /**
  * CSV importer. Accepts the format produced by /api/export (header row +
@@ -114,6 +116,7 @@ function importRouter(db) {
 
   // POST /api/import/contacts
   router.post('/contacts', (req, res) => {
+    if (!req.perms['import']) return denied(res, 'import');
     const rows = parseCsv(String((req.body || {}).csv || ''));
     if (rows.length < 2) {
       return res.status(400).json({ error: 'CSV must include a header row and at least one data row' });
@@ -222,6 +225,7 @@ function importRouter(db) {
 
   // POST /api/import/companies
   router.post('/companies', (req, res) => {
+    if (!req.perms['import']) return denied(res, 'import');
     const rows = parseCsv(String((req.body || {}).csv || ''));
     if (rows.length < 2) {
       return res.status(400).json({ error: 'CSV must include a header row and at least one data row' });

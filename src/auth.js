@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { validatePassword } = require('./validators');
 const { getPlanId } = require('./plans');
+const { ROLES, normalizeRole, grantedKeys, effectivePermissions } = require('./permissions');
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -30,10 +31,24 @@ function newToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-function publicUser(user) {
+/**
+ * Public user payload. `role` is the person's actual role (owner for the
+ * account creator; members default to editor until an admin assigns one) and
+ * `permissions` lists the privilege keys that are currently granted to them,
+ * resolved from the workspace role presets + their personal overrides.
+ */
+function publicUser(db, user) {
+  const role = user.workspaceOwnerId ? normalizeRole(user.role) : 'owner';
   return {
-    id: user.id, name: user.name || '', email: user.email, phone: user.phone || '',
-    plan: getPlanId(user), role: user.workspaceOwnerId ? 'member' : 'owner', createdAt: user.createdAt
+    id: user.id,
+    name: user.name || '',
+    email: user.email,
+    phone: user.phone || '',
+    plan: getPlanId(user),
+    role,
+    roleLabel: ROLES[role] || role,
+    permissions: grantedKeys(db, user),
+    createdAt: user.createdAt
   };
 }
 
@@ -56,7 +71,8 @@ function bearerToken(req) {
  *
  * Team members share the owner's workspace: data scoping (req.userId), the
  * plan, and the workspace identity (req.user) all resolve to the owner;
- * req.member is the person who actually logged in (for display).
+ * req.member is the person who actually logged in (their role/privileges
+ * decide what they may do), and req.perms is their effective permission map.
  */
 function requireAuth(db) {
   return (req, res, next) => {
@@ -71,6 +87,7 @@ function requireAuth(db) {
     req.member = user;
     req.userId = owner.id;
     req.user = owner;
+    req.perms = effectivePermissions(db, user);
     next();
   };
 }
@@ -116,7 +133,7 @@ function authRouter(db, hubspot) {
       }).catch((err) => console.error('[hubspot] signup sync failed:', err && err.message));
     }
 
-    res.status(201).json({ token, user: publicUser(user) });
+    res.status(201).json({ token, user: publicUser(db, user) });
   });
 
   // POST /api/auth/login — verify credentials, return a session token.
@@ -129,11 +146,11 @@ function authRouter(db, hubspot) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     const token = createSession(db, user.id);
-    res.json({ token, user: publicUser(user) });
+    res.json({ token, user: publicUser(db, user) });
   });
 
   // GET /api/auth/me — current user (used by the UI on page load).
-  router.get('/me', requireAuth(db), (req, res) => res.json({ user: publicUser(req.member || req.user) }));
+  router.get('/me', requireAuth(db), (req, res) => res.json({ user: publicUser(db, req.member || req.user) }));
 
   // POST /api/auth/logout — invalidate the current session token.
   router.post('/logout', requireAuth(db), (req, res) => {

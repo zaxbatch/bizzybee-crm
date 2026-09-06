@@ -73,9 +73,16 @@ test('GET /api/account returns plan, limits, usage and prices', async () => {
   assert.strictEqual(json.plan.id, 'free');
   assert.strictEqual(json.plan.priceMonthly, 0);
   assert.strictEqual(json.plan.limits.contacts, 1000);
-  assert.deepStrictEqual(json.usage, { contacts: 0, pipelines: 1, customFields: 0, members: 0 });
+  // The Free plan is 1 seat — the owner themselves (no teams on Free).
+  assert.strictEqual(json.plan.limits.seats, 1);
+  assert.deepStrictEqual(json.usage, { contacts: 0, pipelines: 1, customFields: 0, seats: 1, subcategories: 0 });
   assert.strictEqual(json.prices.pro, 19);
   assert.strictEqual(json.prices.business, 49);
+  // Seat allowances across the plans: Free 1 / Pro 5 / Business 7,500.
+  const seats = Object.fromEntries(json.plans.map((p) => [p.id, p.limits.seats]));
+  assert.deepStrictEqual(seats, { free: 1, pro: 5, business: 7500 });
+  const customSubs = Object.fromEntries(json.plans.map((p) => [p.id, p.limits.subcategories]));
+  assert.deepStrictEqual(customSubs, { free: 0, pro: 2, business: 'unlimited' });
 });
 
 test('plan switch is open when no admin key is configured', async () => {

@@ -2,11 +2,14 @@
 
 const express = require('express');
 const { DEAL_STAGES } = require('../db');
+const { denied } = require('../permissions');
+
 
 function dashboardRouter(db) {
   const router = express.Router();
 
   router.get('/', (req, res) => {
+    if (!req.perms['data.view']) return denied(res, 'data.view');
     const contacts = db.allFor('contacts', req.userId);
     const companies = db.allFor('companies', req.userId);
     const deals = db.allFor('deals', req.userId);

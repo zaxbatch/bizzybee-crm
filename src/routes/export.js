@@ -3,6 +3,8 @@
 const express = require('express');
 const { toCsv } = require('../csv');
 const { defsFor } = require('./customfields');
+const { denied } = require('../permissions');
+
 
 /**
  * CSV exporter. One endpoint per entity, scoped to the authenticated user.
@@ -34,6 +36,7 @@ function exportRouter(db) {
   const router = express.Router();
 
   router.get('/contacts.csv', (req, res) => {
+    if (!req.perms['export']) return denied(res, 'export');
     const defs = defsFor(db, req.userId);
     // Custom field labels become extra columns (deduped if labels repeat).
     const labelCount = new Map();
@@ -65,6 +68,7 @@ function exportRouter(db) {
   });
 
   router.get('/companies.csv', (req, res) => {
+    if (!req.perms['export']) return denied(res, 'export');
     const rows = db.allFor('companies', req.userId).map((c) => {
       const contacts = db.allFor('contacts', req.userId).filter((ct) => ct.companyId === c.id);
       const deals = db.allFor('deals', req.userId).filter((d) => d.companyId === c.id);
@@ -86,6 +90,7 @@ function exportRouter(db) {
   });
 
   router.get('/deals.csv', (req, res) => {
+    if (!req.perms['export']) return denied(res, 'export');
     const rows = db.allFor('deals', req.userId).map((d) => {
       const company = d.companyId ? db.getFor('companies', d.companyId, req.userId) : null;
       const contact = d.contactId ? db.getFor('contacts', d.contactId, req.userId) : null;
@@ -104,6 +109,7 @@ function exportRouter(db) {
   });
 
   router.get('/activities.csv', (req, res) => {
+    if (!req.perms['export']) return denied(res, 'export');
     const rows = db.allFor('activities', req.userId).map((a) => {
       const contact = a.contactId ? db.getFor('contacts', a.contactId, req.userId) : null;
       return {

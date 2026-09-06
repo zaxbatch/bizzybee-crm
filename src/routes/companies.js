@@ -2,11 +2,14 @@
 
 const express = require('express');
 const { validateCompany } = require('../validators');
+const { denied } = require('../permissions');
+
 
 function companiesRouter(db) {
   const router = express.Router();
 
   router.get('/', (req, res) => {
+    if (!req.perms['data.view']) return denied(res, 'data.view');
     const { q } = req.query;
     let list = db.allFor('companies', req.userId);
     if (q) {
@@ -25,6 +28,7 @@ function companiesRouter(db) {
   });
 
   router.post('/', (req, res) => {
+    if (!req.perms['data.create']) return denied(res, 'data.create');
     const errors = validateCompany(req.body || {});
     if (errors.length) return res.status(400).json({ error: 'Validation failed', details: errors });
     res.status(201).json(db.insert('companies', { ...req.body, ownerId: req.userId }));
@@ -32,6 +36,7 @@ function companiesRouter(db) {
 
   // POST /api/companies/bulk-delete — companies with deals are blocked
   router.post('/bulk-delete', (req, res) => {
+    if (!req.perms['data.delete']) return denied(res, 'data.delete');
     const ids = Array.isArray((req.body || {}).ids) ? (req.body || {}).ids.filter((i) => typeof i === 'string' && i) : [];
     if (!ids.length) return res.status(400).json({ error: 'No ids provided' });
     let deleted = 0;
@@ -49,6 +54,7 @@ function companiesRouter(db) {
   });
 
   router.get('/:id', (req, res) => {
+    if (!req.perms['data.view']) return denied(res, 'data.view');
     const company = db.getFor('companies', req.params.id, req.userId);
     if (!company) return res.status(404).json({ error: 'Company not found' });
     const contacts = db.allFor('contacts', req.userId).filter((c) => c.companyId === company.id);
@@ -57,6 +63,7 @@ function companiesRouter(db) {
   });
 
   router.put('/:id', (req, res) => {
+    if (!req.perms['data.edit']) return denied(res, 'data.edit');
     const existing = db.getFor('companies', req.params.id, req.userId);
     if (!existing) return res.status(404).json({ error: 'Company not found' });
     const errors = validateCompany(req.body || {}, { partial: true });
@@ -65,6 +72,7 @@ function companiesRouter(db) {
   });
 
   router.delete('/:id', (req, res) => {
+    if (!req.perms['data.delete']) return denied(res, 'data.delete');
     const existing = db.getFor('companies', req.params.id, req.userId);
     if (!existing) return res.status(404).json({ error: 'Company not found' });
     const deals = db.allFor('deals', req.userId).filter((d) => d.companyId === req.params.id);

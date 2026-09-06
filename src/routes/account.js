@@ -8,13 +8,19 @@ function jsonLimit(v) {
   return Number.isFinite(v) ? v : 'unlimited';
 }
 
+/** Every serializable plan limit, in display order. */
+function limitsJson(limits) {
+  const pick = ['contacts', 'pipelines', 'customFields', 'seats', 'subcategories'];
+  return Object.fromEntries(pick.map((k) => [k, jsonLimit(limits[k])]));
+}
+
 /**
  * Account & subscription endpoints.
  *
  *   GET  /api/account        → plan, limits, current usage, prices
- *   PUT  /api/account/plan   → switch plan (requires x-admin-key until real
- *                              billing is wired; the Stripe webhook will call
- *                              the same endpoint later)
+ *   PUT  /api/account/plan   → switch plan (owner only; requires x-admin-key
+ *                              when BIZZYBEE_ADMIN_KEY is set — the future
+ *                              Stripe webhook calls this same endpoint)
  */
 function accountRouter(db, options = {}) {
   const router = express.Router();
@@ -26,23 +32,13 @@ function accountRouter(db, options = {}) {
       user: { id: user.id, name: user.name || '', email: user.email, plan: getPlanId(user) },
       plan: {
         id: plan.id, name: plan.name, priceMonthly: plan.priceMonthly,
-        limits: {
-          contacts: jsonLimit(plan.limits.contacts),
-          pipelines: jsonLimit(plan.limits.pipelines),
-          customFields: jsonLimit(plan.limits.customFields),
-          members: jsonLimit(plan.limits.members),
-        },
+        limits: limitsJson(plan.limits),
         features: plan.features
       },
       // Every plan, serialized, so the client can render the upgrade UI.
       plans: Object.values(PLANS).map((p) => ({
         id: p.id, name: p.name, priceMonthly: p.priceMonthly,
-        limits: {
-          contacts: jsonLimit(p.limits.contacts),
-          pipelines: jsonLimit(p.limits.pipelines),
-          customFields: jsonLimit(p.limits.customFields),
-          members: jsonLimit(p.limits.members),
-        },
+        limits: limitsJson(p.limits),
         features: p.features
       })),
       usage: usage(db, user.id),
@@ -54,11 +50,15 @@ function accountRouter(db, options = {}) {
   router.get('/', (req, res) => res.json(accountJson(req.user)));
 
   // PUT /api/account/plan — switch plan.
-  // Until real billing is wired, switches are OPEN (preview mode). The gate
-  // activates automatically once an admin key is configured: if BIZZYBEE_ADMIN_KEY
-  // is set, the request must carry it in x-admin-key. The future Stripe webhook
-  // will call this same endpoint.
+  // Only the account owner may change the workspace plan (a member switching
+  // plans would bill the owner). Until real billing is wired, switches are
+  // OPEN for the owner (preview mode). The gate activates automatically once
+  // an admin key is configured: if BIZZYBEE_ADMIN_KEY is set, the request
+  // must carry it in x-admin-key.
   router.put('/plan', (req, res) => {
+    if (req.member && req.member.workspaceOwnerId) {
+      return res.status(403).json({ error: 'Only the account owner can change the plan', code: 'OWNER_ONLY' });
+    }
     const key = String(req.headers['x-admin-key'] || '');
     if (adminKey && key !== adminKey) {
       return res.status(403).json({ error: 'Admin key required to change plans', code: 'ADMIN_KEY_REQUIRED' });

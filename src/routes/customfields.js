@@ -2,6 +2,8 @@
 
 const express = require('express');
 const { getPlan } = require('../plans');
+const { denied } = require('../permissions');
+
 
 const FIELD_TYPES = ['text', 'textarea', 'email', 'url', 'phone', 'number', 'date', 'select', 'checkbox'];
 const MAX_LABEL = 60;
@@ -71,11 +73,16 @@ function validateCustomValues(db, userId, custom) {
 function customfieldsRouter(db) {
   const router = express.Router();
 
-  // GET /api/custom-fields — the account's field definitions.
-  router.get('/', (req, res) => res.json(defsFor(db, req.userId)));
+  // GET /api/custom-fields — the account's field definitions (viewable by
+  // anyone who can see CRM data — the forms embed custom field values).
+  router.get('/', (req, res) => {
+    if (!req.perms['data.view']) return denied(res, 'data.view');
+    res.json(defsFor(db, req.userId));
+  });
 
   // POST /api/custom-fields — create (plan-gated: Free 0 / Pro 50 / Business ∞).
   router.post('/', (req, res) => {
+    if (!req.perms['manage.customFields']) return denied(res, 'manage.customFields');
     const plan = getPlan(req.user);
     const limit = plan.limits.customFields;
     const count = defsFor(db, req.userId).length;
@@ -107,6 +114,7 @@ function customfieldsRouter(db) {
 
   // PUT /api/custom-fields/:id — rename / retype / update options.
   router.put('/:id', (req, res) => {
+    if (!req.perms['manage.customFields']) return denied(res, 'manage.customFields');
     const field = db.getFor('custom_fields', req.params.id, req.userId);
     if (!field) return res.status(404).json({ error: 'Custom field not found' });
 
@@ -135,6 +143,7 @@ function customfieldsRouter(db) {
 
   // DELETE /api/custom-fields/:id — remove the field + strip values from contacts.
   router.delete('/:id', (req, res) => {
+    if (!req.perms['manage.customFields']) return denied(res, 'manage.customFields');
     const field = db.getFor('custom_fields', req.params.id, req.userId);
     if (!field) return res.status(404).json({ error: 'Custom field not found' });
     db.allFor('contacts', req.userId).forEach((c) => {
