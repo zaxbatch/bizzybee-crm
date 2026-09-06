@@ -274,16 +274,16 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); b
 textarea.reyna-result { width: 100%; font-family: inherit; font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; }
 
 /* ===== Reyna floating launcher + dock ===== */
-.reyna-fab { position: fixed; left: 246px; bottom: 18px; z-index: 45; display: inline-flex; align-items: center; gap: 8px;
+.reyna-fab { position: fixed; right: 20px; bottom: 18px; z-index: 45; display: inline-flex; align-items: center; gap: 8px;
   background: #131a26; color: #fff; border: 1px solid rgba(255,255,255,0.14); border-radius: 999px;
   padding: 10px 16px 10px 12px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
   box-shadow: 0 10px 28px rgba(0,0,0,0.28); }
 .reyna-fab .reyna-fab-icon { font-size: 17px; line-height: 1; }
 .reyna-fab:hover, .reyna-fab.active { background: var(--primary); color: #1e1200; border-color: var(--primary); }
 
-/* Desktop: Reyna docks on the LEFT side of the content, right of the sidebar */
-.reyna-dock { position: fixed; z-index: 40; top: 14px; bottom: 14px; left: 246px;
-  width: min(400px, calc(100vw - 246px - 24px)); display: flex; }
+/* Desktop: Reyna docks on the RIGHT side of the screen */
+.reyna-dock { position: fixed; z-index: 46; top: 14px; bottom: 14px; right: 14px;
+  width: min(400px, calc(100vw - 28px)); display: flex; }
 .reyna-dock .panel { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
   border-radius: 14px; box-shadow: 0 18px 48px rgba(0,0,0,0.22); }
 .reyna-dock .panel-head { flex-shrink: 0; flex-wrap: wrap; gap: 6px; }
@@ -295,6 +295,6 @@ textarea.reyna-result { width: 100%; font-family: inherit; font-size: 13.5px; li
 /* Mobile: Reyna pops up as an overlapping modal */
 @media (max-width: 900px) {
   .reyna-dock { left: 10px; right: 10px; top: 10px; bottom: 10px; width: auto; }
-  .reyna-fab { left: 12px; bottom: 12px; padding: 11px 14px; }
+  .reyna-fab { left: auto; right: 12px; bottom: 12px; padding: 11px 14px; }
   .reyna-fab .reyna-fab-label { font-size: 13px; }
 }
