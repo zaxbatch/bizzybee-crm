@@ -230,3 +230,33 @@ async function apiAt(url, method, path, body, tok) {
   try { json = await res.json(); } catch {}
   return { status: res.status, json };
 }
+
+test('real client parses completions through a stubbed OpenAI-compatible fetch', async () => {
+  // Fake transport returns the exact wire shape of /chat/completions.
+  const fakeFetch = async (url, opts) => {
+    lastPrompt = { url, body: JSON.parse(opts.body) };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: 'Subject: Hello there\n\nThis is the body from the model.' } }] })
+    };
+  };
+  const { srv, url, dir } = await startServer({ ai: { apiKey: 'test-key', fetchImpl: fakeFetch }, aiCreditOverrides: CREDITS });
+  try {
+    const reg = await apiAt(url, 'POST', '/api/auth/register', { name: 'Wire', email: 'wire@test.dev', password: 'correct horse battery staple' });
+    const tok = reg.json.token;
+    await apiAt(url, 'PUT', '/api/account/plan', { plan: 'pro' }, tok);
+
+    const chat = await apiAt(url, 'POST', '/api/ai/chat', { message: 'hi' }, tok);
+    assert.strictEqual(chat.status, 200);
+    assert.match(lastPrompt.body.messages[0].role, /system/);
+    assert.match(lastPrompt.body.model, /gpt|stub|test/i);
+
+    const email = await apiAt(url, 'POST', '/api/ai/email-draft', { type: 'contact', id: 'x' }, tok);
+    // No contact exists yet → entity lookup fails before the model is called.
+    assert.strictEqual(email.status, 404);
+  } finally {
+    srv.close();
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+  }
+});
