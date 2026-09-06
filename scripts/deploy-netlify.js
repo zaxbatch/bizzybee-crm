@@ -133,6 +133,18 @@ async function main() {
   await setSiteEnvVar(site.id, 'NETLIFY_SITE_ID', site.id);
   await setSiteEnvVar(site.id, 'NETLIFY_AUTH_TOKEN', TOKEN);
 
+  // Reyna (AI assistant): mirror the resolved provider config (project +
+  // workspace .env, same precedence as src/config.js) into the site env so
+  // the production function can serve Pro/Business AI requests.
+  const config = require('../src/config');
+  if (config.ai.apiKey) {
+    await setSiteEnvVar(site.id, 'OPENAI_API_KEY', config.ai.apiKey);
+    await setSiteEnvVar(site.id, 'OPENAI_BASE_URL', config.ai.baseUrl);
+    await setSiteEnvVar(site.id, 'OPENAI_MODEL', config.ai.model);
+  } else {
+    console.warn('⚠ No AI provider key found — Reyna will report "not configured" until OPENAI_API_KEY/DEEPSEEK_API_KEY is added.');
+  }
+
   console.log('\nStaging the publish dir (landing + CRM frontend)…');
   execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'build-site.js')], { cwd: ROOT, stdio: 'inherit' });
 
