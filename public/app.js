@@ -189,6 +189,9 @@ function customInputHtml(f, value) {
 
 /* ============================ Team ============================ */
 
+let teamInfo = null;
+let teamTab = 'members';
+
 async function renderTeam(el) {
   let data;
   try {
@@ -197,47 +200,103 @@ async function renderTeam(el) {
     el.innerHTML = `<div class="empty">⚠️ ${esc(err.message)}</div>`;
     return;
   }
-  const isOwner = !currentUser || currentUser.role !== 'member';
-  const { members, limit, usage } = data;
-  el.innerHTML = `
-    <div class="panel">
-      <div class="panel-head">
-        <h2>Team Members (${usage}${limit !== 'unlimited' ? ' / ' + limit : ''})</h2>
-        <div class="panel-actions">${isOwner ? '<button class="btn btn-primary btn-sm" data-new-member>+ Add Member</button>' : ''}</div>
-      </div>
-      ${isOwner ? '' : '<div class="empty" style="padding:14px;font-size:13px;">You are a team member — the account owner manages the team.</div>'}
-      ${members.length ? `
-        <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Joined</th>${isOwner ? '<th></th>' : ''}</tr></thead>
-          <tbody>
-            ${members.map((m) => `
-              <tr>
-                <td><strong>${esc(m.name)}</strong></td>
-                <td><a href="mailto:${esc(m.email)}">${esc(m.email)}</a></td>
-                <td>${fmtDate(m.createdAt)}</td>
-                ${isOwner ? `<td class="row-actions"><button class="btn btn-danger btn-sm" data-del-member="${esc(m.id)}">Remove</button></td>` : ''}
-              </tr>`).join('')}
-          </tbody>
-        </table>` : '<div class="empty">No team members yet — add your first one.</div>'}
+  teamInfo = data;
+
+  const tabs = [{ id: 'members', label: `Members (${data.members.length})`, show: true }];
+  if (data.can.permissions) tabs.push({ id: 'roles', label: 'Roles & privileges', show: true });
+  if (data.can.subcategories) tabs.push({ id: 'subcategories', label: 'Subcategories', show: true });
+  if (!tabs.some((t) => t.id === teamTab)) teamTab = 'members';
+
+  const tabBar = `
+    <div class="team-tabs">
+      ${tabs.filter((t) => t.show).map((t) =>
+        `<button class="tab-btn ${teamTab === t.id ? 'active' : ''}" data-team-tab="${t.id}">${t.label}</button>`).join('')}
     </div>`;
 
-  el.querySelector('[data-new-member]')?.addEventListener('click', memberForm);
-  el.querySelectorAll('[data-del-member]').forEach((b) => b.addEventListener('click', async () => {
-    if (!confirm('Remove this team member? They will lose access to the workspace.')) return;
-    try {
-      await api('DELETE', '/api/team/members/' + b.dataset.delMember);
-      toast('Team member removed');
-      render();
-    } catch (err) { toast(err.message, true); }
-  }));
+  let body = '';
+  if (teamTab === 'members') body = teamMembersHtml(data);
+  else if (teamTab === 'roles') body = teamRolesHtml(data);
+  else body = teamSubcategoriesHtml(data);
+
+  el.innerHTML = tabBar + body;
+  bindTeamActions(el, data);
 }
 
-function memberForm() {
+/* ---------------------- Members tab ---------------------- */
+
+function teamMembersHtml(d) {
+  const freeSolo = d.seats.limit === 1;
+  const me = d.current;
+  const manage = d.can.members;
+
+  return `
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Team Members (${d.seats.usage} of ${d.seats.limit} seat${d.seats.limit === 1 ? '' : 's'} used)</h2>
+        <div class="panel-actions">
+          ${freeSolo
+            ? '<button class="btn btn-primary btn-sm" data-upgrade>Upgrade to invite teammates</button>'
+            : (manage ? '<button class="btn btn-primary btn-sm" data-new-member>+ Add Member</button>' : '')}
+        </div>
+      </div>
+      <div class="panel-note">${freeSolo
+        ? 'Free includes 1 seat — you. Teams start on <strong>Pro (5 seats)</strong>; Business scales to <strong>7,500</strong>. Seats include the account owner.'
+        : `Seats include the account owner. Roles: <strong>Admin</strong> (full control), <strong>Editor</strong> (day-to-day work), <strong>Viewer</strong> (read-only). Assign members to subcategories (Sales, Marketing…) to organize them.`}</div>
+      <table>
+        <thead><tr>
+          <th>Name</th><th>Email</th><th>Role</th><th>Subcategory</th><th>Joined</th>${manage ? '<th></th>' : ''}
+        </tr></thead>
+        <tbody>
+          ${d.members.map((m) => {
+            const you = m.id === me.id ? ' <span class="tag you-tag">you</span>' : '';
+            let actions = manage ? '<td class="row-actions"></td>' : '';
+            if (manage && !m.isOwner) {
+              actions = `<td class="row-actions">
+                <button class="btn btn-sm" data-edit-member="${esc(m.id)}">Edit</button>
+                ${d.can.permissions ? `<button class="btn btn-sm" data-privs-member="${esc(m.id)}" title="Customize this member's privileges">Privileges</button>` : ''}
+                <button class="btn btn-danger btn-sm" data-del-member="${esc(m.id)}">Remove</button>
+              </td>`;
+            } else if (manage && m.isOwner) {
+              actions = '<td class="row-actions"><span class="muted small">Owner · full access</span></td>';
+            }
+            return `<tr>
+              <td><strong>${esc(m.name)}</strong>${you}</td>
+              <td><a href="mailto:${esc(m.email)}">${esc(m.email)}</a></td>
+              <td><span class="pill pill-${esc(m.isOwner ? 'owner' : m.role)}">${esc(m.isOwner ? 'Owner' : m.roleLabel)}</span></td>
+              <td>${m.subcategoryName ? `<span class="subcat-chip">${esc(m.subcategoryName)}</span>` : '<span class="muted">—</span>'}</td>
+              <td>${fmtDate(m.createdAt)}</td>
+              ${actions}
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${(!manage && !me.isOwner) ? `
+      <div class="empty" style="padding:14px;font-size:13px;">Your <strong>${esc(me.roleLabel)}</strong> role can view the team — admins invite, edit roles and manage subcategories.</div>` : ''}`;
+}
+
+function teamRoleOptionsHtml(d, selected) {
+  return d.roles.map((r) =>
+    `<option value="${r.id}" ${r.id === selected ? 'selected' : ''}>${esc(r.label)} — ${esc(r.blurb)}</option>`).join('');
+}
+
+function teamSubcategoryOptionsHtml(d, selectedId) {
+  const opts = [...d.subcategories.builtIn, ...d.subcategories.custom];
+  return `<option value="">— none —</option>` + opts.map((s) =>
+    `<option value="${esc(s.id)}" ${s.id === selectedId ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+}
+
+function memberAddForm(d) {
   openModal('Add Team Member', `
     <div class="form-grid">
       <div class="full"><label>Name *</label><input name="name" required placeholder="Jane Doe" /></div>
       <div class="full"><label>Email *</label><input name="email" type="email" required placeholder="jane@company.com" /></div>
-      <div class="full"><label>Temporary password * <span class="opt">(min 8 characters — they can change it later)</span></label><input name="password" type="password" required autocomplete="new-password" /></div>
+      <div class="full"><label>Temporary password * <span class="opt">(min 8 characters — they can change it later)</span></label>
+        <input name="password" type="password" required autocomplete="new-password" /></div>
+      <div class="full"><label>Role</label>
+        <select name="role">${teamRoleOptionsHtml(d, 'editor')}</select></div>
+      <div class="full"><label>Subcategory <span class="opt">(optional — organize your team)</span></label>
+        <select name="subcategoryId">${teamSubcategoryOptionsHtml(d, '')}</select></div>
     </div>`);
   $('#modalForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -245,12 +304,286 @@ function memberForm() {
     try {
       await api('POST', '/api/team/members', {
         name: fd.get('name'), email: fd.get('email'), password: fd.get('password'),
+        role: fd.get('role'), subcategoryId: fd.get('subcategoryId') || ''
       });
-      toast('Team member added — share their email + password to log in.');
+      toast('Member added — share their email + password to log in.');
       closeModal();
       render();
     } catch (err) { toast(err.message, true); }
   });
+}
+
+function memberEditForm(memberId, d) {
+  const m = d.members.find((x) => x.id === memberId);
+  if (!m) return;
+  openModal(`Edit ${esc(m.name)}`, `
+    <div class="form-grid">
+      <div class="full"><label>Name</label><input name="name" value="${esc(m.name)}" required /></div>
+      <div class="full"><label>Role</label>
+        <select name="role">${teamRoleOptionsHtml(d, m.role)}</select>
+        <div class="muted" style="margin-top:4px">Changing the role takes effect immediately.</div></div>
+      <div class="full"><label>Subcategory</label>
+        <select name="subcategoryId">${teamSubcategoryOptionsHtml(d, m.subcategoryId)}</select></div>
+    </div>`);
+  $('#modalForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try {
+      await api('PATCH', `/api/team/members/${memberId}`, {
+        name: fd.get('name'), role: fd.get('role'), subcategoryId: fd.get('subcategoryId') || ''
+      });
+      toast('Member updated');
+      closeModal();
+      render();
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
+function memberPrivilegesForm(memberId, d) {
+  const m = d.members.find((x) => x.id === memberId);
+  if (!m) return;
+  const preset = (d.roles.find((r) => r.id === m.role) || {}).permissions || {};
+  const ov = m.permissionOverrides || {};
+
+  openModal(`Privileges — ${esc(m.name)}`, `
+    <div class="muted" style="margin-bottom:12px;font-size:13px;">
+      Personal overrides for <strong>${esc(m.roleLabel)}</strong> ${esc(m.name)}. Boxes below show what they can do today.
+      Unticking a box removes a privilege; ticking adds one beyond their role.
+    </div>
+    <div style="overflow-x:auto">${permissionMatrixHtml(d.catalog, [
+      { id: 'member', label: `${esc(m.roleLabel)} · ${esc(m.name)}`, values: Object.fromEntries(
+        d.catalog.flatMap((g) => g.items).map((i) => [i.key, Object.prototype.hasOwnProperty.call(ov, i.key) ? ov[i.key] : preset[i.key]])
+      ), locked: false }
+    ])}</div>`);
+
+  $('#modalForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const overrides = {};
+    const matrix = $('#modalForm').querySelector('.perm-matrix');
+    if (!matrix) return;
+    for (const row of [...matrix.querySelectorAll('tbody tr')]) {
+      const key = row.dataset.permKey;
+      if (!key) continue;
+      const checked = !!row.querySelector('input[type=checkbox]')?.checked;
+      if (checked !== !!preset[key]) overrides[key] = checked;
+    }
+    try {
+      await api('PUT', `/api/team/members/${memberId}/permissions`, { permissions: overrides });
+      toast('Privileges updated');
+      closeModal();
+      await refreshMe();
+      render();
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
+/* ---------------------- Roles & privileges tab ---------------------- */
+
+/** Rows-per-privilege permission table. cols: [{id,label,values,locked}]. */
+function permissionMatrixHtml(catalog, cols) {
+  const head = cols.map((c) => `<th>${c.label}${c.locked ? ' <span class="muted small">(owner)</span>' : ''}</th>`).join('');
+  const keys = catalog.flatMap((g) => g.items);
+  return `
+    <table class="perm-matrix">
+      <thead><tr><th>Privilege</th>${head}</tr></thead>
+      <tbody>
+        ${catalog.map((g) => `
+          <tr class="perm-group-row"><td colspan="${cols.length + 1}">${esc(g.title)}</td></tr>
+          ${g.items.map((item) => `
+            <tr data-perm-key="${esc(item.key)}">
+              <td>${esc(item.label)}</td>
+              ${cols.map((c) => {
+                const checked = !!(c.values && c.values[item.key]);
+                const title = c.locked ? 'Only the account owner can change Admin privileges' : '';
+                return `<td class="perm-cell">
+                  <input type="checkbox" data-col="${esc(c.id)}" data-key="${esc(item.key)}" ${checked ? 'checked' : ''} ${c.locked ? 'disabled' : ''} title="${esc(title)}" />
+                </td>`;
+              }).join('')}
+            </tr>`).join('')}
+        `).join('')}
+      </tbody>
+    </table>`;
+}
+
+function teamRolesHtml(d) {
+  const adminLocked = !d.current.isOwner;
+  const cols = d.roles.map((r) => ({
+    id: r.id, label: r.label, values: r.permissions, locked: r.id === 'admin' ? adminLocked : false
+  }));
+  return `
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Roles &amp; privileges</h2>
+        <div class="panel-actions">
+          <button class="btn btn-primary btn-sm" id="saveRoleMatrix" disabled>Save changes</button>
+        </div>
+      </div>
+      <div class="panel-note">Role defaults apply to everyone holding the role. ${adminLocked
+        ? 'Only the account owner can change what Admins can do.'
+        : 'Need finer control? Grant personal overrides to individual members from the Members tab.'}
+        The account owner always has full access.</div>
+      <div style="overflow-x:auto">${permissionMatrixHtml(d.catalog, cols)}</div>
+    </div>`;
+}
+
+/* ---------------------- Subcategories tab ---------------------- */
+
+function teamSubcategoriesHtml(d) {
+  const sc = d.subcategories;
+  const counts = {};
+  d.members.forEach((m) => { if (m.subcategoryId) counts[m.subcategoryId] = (counts[m.subcategoryId] || 0) + 1; });
+  const unlimited = sc.limit === 'unlimited';
+  const full = !unlimited && sc.usage >= sc.limit;
+  const countText = (id) => `${counts[id] || 0} member${counts[id] === 1 ? '' : 's'}`;
+
+  const addAction = full
+    ? `<button class="btn btn-primary btn-sm" data-upgrade>Upgrade for more${sc.limit === 0 ? '' : ''}</button>`
+    : `<button class="btn btn-primary btn-sm" data-add-sub>+ Add Custom</button>`;
+
+  return `
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Subcategories</h2>
+        <div class="panel-actions">${addAction}</div>
+      </div>
+      <div class="panel-note">Subcategories (Sales, Marketing, HR, Finance…) organize your team members.
+        Built-ins are included on every plan${sc.limit === 0 ? '' : ` — your plan includes ${unlimited ? 'unlimited' : sc.limit} custom subcategor${sc.limit === 1 ? 'y' : 'ies'}`}.
+        ${full ? `You've used all ${sc.usage} of your custom subcategories.` : ''}</div>
+
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);">
+        <div class="muted small" style="margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Built-in</div>
+        <div class="subcat-grid">
+          ${sc.builtIn.map((s) => `
+            <div class="subcat-item">
+              <span class="subcat-chip">${esc(s.name)}</span>
+              <span class="muted small">${countText(s.id)}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <div style="padding:14px 18px;">
+        <div class="muted small" style="margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Custom (${sc.usage}${unlimited ? '' : ' / ' + sc.limit})</div>
+        ${sc.custom.length ? `
+        <table>
+          <thead><tr><th>Name</th><th>Members</th><th></th></tr></thead>
+          <tbody>
+            ${sc.custom.map((s) => `
+              <tr>
+                <td><strong>${esc(s.name)}</strong></td>
+                <td>${countText(s.id)}</td>
+                <td class="row-actions">
+                  <button class="btn btn-sm" data-rename-sub="${esc(s.id)}">Rename</button>
+                  <button class="btn btn-danger btn-sm" data-del-sub="${esc(s.id)}">Delete</button>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>` : '<div class="empty" style="padding:16px;">No custom subcategories yet — add one, then assign members from the Members tab.</div>'}
+      </div>
+    </div>`;
+}
+
+function subcategoryNamePrompt(title, initial, submitLabel, onSave) {
+  openModal(title, `
+    <div class="form-grid">
+      <div class="full"><label>Name</label>
+        <input name="name" required maxlength="40" value="${esc(initial || '')}" placeholder="e.g. Customer Success, Legal…" /></div>
+    </div>`);
+  const btn = $('#modalForm').querySelector('button[type=submit]');
+  if (btn) btn.textContent = submitLabel;
+  $('#modalForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await onSave(String(new FormData(e.target).get('name')).trim());
+  });
+}
+
+/* ---------------------- Team event wiring ---------------------- */
+
+function bindTeamActions(el, d) {
+  el.querySelectorAll('[data-team-tab]').forEach((b) => b.addEventListener('click', () => {
+    teamTab = b.dataset.teamTab;
+    render();
+  }));
+
+  el.querySelector('[data-new-member]')?.addEventListener('click', () => memberAddForm(d));
+  el.querySelectorAll('[data-edit-member]').forEach((b) => b.addEventListener('click', () => memberEditForm(b.dataset.editMember, d)));
+  el.querySelectorAll('[data-privs-member]').forEach((b) => b.addEventListener('click', () => memberPrivilegesForm(b.dataset.privsMember, d)));
+  el.querySelectorAll('[data-del-member]').forEach((b) => b.addEventListener('click', async () => {
+    const m = d.members.find((x) => x.id === b.dataset.delMember);
+    if (!m) return;
+    if (!confirm(`Remove ${m.name} from the team? They will lose access to this workspace.`)) return;
+    try {
+      await api('DELETE', `/api/team/members/${b.dataset.delMember}`);
+      toast('Team member removed');
+      render();
+    } catch (err) { toast(err.message, true); }
+  }));
+
+  // Role matrix: enable Save when something changed.
+  const saveRoles = el.querySelector('#saveRoleMatrix');
+  if (saveRoles) {
+    const changed = () => {
+      const dirty = new Set();
+      el.querySelectorAll('.perm-matrix input[type=checkbox]:not([disabled])').forEach((cb) => {
+        const col = cb.dataset.col;
+        const key = cb.dataset.key;
+        const preset = (d.roles.find((r) => r.id === col) || {}).permissions || {};
+        if (cb.checked !== !!preset[key]) dirty.add(col);
+      });
+      saveRoles.disabled = dirty.size === 0;
+      return [...dirty];
+    };
+    el.querySelectorAll('.perm-matrix input[type=checkbox]').forEach((cb) => cb.addEventListener('change', changed));
+    saveRoles.addEventListener('click', async () => {
+      const dirty = changed();
+      if (!dirty.length) return;
+      const btn = saveRoles;
+      btn.disabled = true;
+      try {
+        for (const roleId of dirty) {
+          const perms = {};
+          el.querySelectorAll(`.perm-matrix input[type=checkbox][data-col="${roleId}"]`).forEach((cb) => { perms[cb.dataset.key] = cb.checked; });
+          await api('PUT', '/api/team/permissions/roles', { role: roleId, permissions: perms });
+        }
+        toast(`Saved privileges for ${dirty.map((r) => (d.roles.find((x) => x.id === r) || {}).label).join(', ')}`);
+        render();
+      } catch (err) { toast(err.message, true); }
+    });
+  }
+
+  el.querySelector('[data-add-sub]')?.addEventListener('click', () => {
+    subcategoryNamePrompt('Add custom subcategory', '', 'Add', async (name) => {
+      try {
+        await api('POST', '/api/team/subcategories', { name });
+        toast('Subcategory added');
+        closeModal();
+        render();
+      } catch (err) { toast(err.message, true); }
+    });
+  });
+  el.querySelectorAll('[data-rename-sub]').forEach((b) => b.addEventListener('click', () => {
+    const sub = [...d.subcategories.builtIn, ...d.subcategories.custom].find((s) => s.id === b.dataset.renameSub);
+    if (!sub) return;
+    subcategoryNamePrompt('Rename subcategory', sub.name, 'Rename', async (name) => {
+      try {
+        await api('PUT', `/api/team/subcategories/${sub.id}`, { name });
+        toast('Subcategory renamed');
+        closeModal();
+        render();
+      } catch (err) { toast(err.message, true); }
+    });
+  }));
+  el.querySelectorAll('[data-del-sub]').forEach((b) => b.addEventListener('click', async () => {
+    const sub = d.subcategories.custom.find((s) => s.id === b.dataset.delSub);
+    if (!sub) return;
+    if (!confirm(`Delete the "${sub.name}" subcategory? Members assigned to it will be unassigned.`)) return;
+    try {
+      await api('DELETE', `/api/team/subcategories/${sub.id}`);
+      toast('Subcategory deleted');
+      render();
+    } catch (err) { toast(err.message, true); }
+  }));
+
+  el.querySelector('[data-upgrade]')?.addEventListener('click', openUpgradeModal);
 }
 
 function openUpgradeModal() {
@@ -264,6 +597,9 @@ function openUpgradeModal() {
         <li>Contacts: ${fmtLimit(p.limits.contacts)}</li>
         <li>Pipelines: ${fmtLimit(p.limits.pipelines)}</li>
         <li>Custom fields: ${fmtLimit(p.limits.customFields)}</li>
+        <li>Team seats: ${fmtLimit(p.limits.seats)}${p.limits.seats === 1 ? ' (you)' : ''}${p.limits.seats > 1 ? ' — incl. owner' : ''}</li>
+        <li>Roles &amp; privileges: ${p.features.teams ? '✓ Admin / Editor / Viewer + custom' : '— solo'}</li>
+        <li>Custom subcategories: ${fmtLimit(p.limits.subcategories)} ${p.limits.subcategories !== 0 ? '(+ built-ins)' : '(built-ins only)'}</li>
         <li>API: ${featureLabel(p.features, 'api')}</li>
         <li>White-label: ${featureLabel(p.features, 'whiteLabel')}</li>
         <li>Priority support: ${featureLabel(p.features, 'prioritySupport')}</li>
@@ -727,10 +1063,52 @@ function showAuthScreen(hint) {
 function showApp() {
   $('#authScreen').classList.add('hidden');
   $('#appShell').classList.remove('hidden');
-  $('#userEmail').textContent = currentUser?.email || '';
+  renderUserBox();
+  updateUIPermissions();
   loadAccount();
   loadCustomFields();
   navigate('dashboard');
+}
+
+/** Does the signed-in user hold a privilege (see /api/team catalog)? */
+function can(key) {
+  return !!(currentUser && (currentUser.permissions || []).includes(key));
+}
+
+/** Re-fetch /api/auth/me — after role/privilege changes your own UI gates update. */
+async function refreshMe() {
+  try {
+    const { user } = await api('GET', '/api/auth/me');
+    currentUser = user;
+    renderUserBox();
+    updateUIPermissions();
+  } catch { /* keep whatever we had */ }
+}
+
+function renderUserBox() {
+  if (!currentUser) return;
+  $('#userEmail').textContent = currentUser.email || '';
+  const roleEl = $('#userRole');
+  if (roleEl) roleEl.textContent = currentUser.roleLabel || '';
+}
+
+/** Show/hide nav items, the +Add menu and sidebar role based on privileges. */
+function updateUIPermissions() {
+  const dataViews = ['dashboard', 'contacts', 'companies', 'deals', 'activities'];
+  document.querySelectorAll('.nav-btn').forEach((b) => {
+    const v = b.dataset.view;
+    const visible = v === 'team' ? true
+      : v === 'customfields' ? can('manage.customFields')
+        : dataViews.includes(v) ? can('data.view') : true;
+    b.classList.toggle('hidden', !visible);
+  });
+  const canCreate = can('data.create');
+  const addBtn = $('#primaryAction');
+  if (addBtn) addBtn.classList.toggle('hidden', !canCreate);
+  if (!canCreate) $('#addMenu').classList.add('hidden');
+  document.querySelectorAll('#addMenu [data-add]').forEach((b) => {
+    b.classList.toggle('hidden', !canCreate);
+  });
 }
 
 function clearSession() {
@@ -971,27 +1349,33 @@ async function renderContacts(el) {
     api('GET', '/api/companies')
   ]);
   const companyNames = Object.fromEntries(companies.map((c) => [c.id, c.name]));
+  const mayView = can('data.view');
+  const mayCreate = can('data.create');
+  const mayEdit = can('data.edit');
+  const mayDelete = can('data.delete');
+  const mayImport = can('import');
+  const mayExport = can('export');
 
   el.innerHTML = `
     <div class="panel">
       <div class="panel-head">
         <h2>Contacts (${contacts.length})</h2>
         <div class="panel-actions">
-          <button class="btn btn-sm" data-import="contacts">⬆ Import CSV</button>
-          <button class="btn btn-sm" data-export="contacts">⬇ Export CSV</button>
-          <button class="btn btn-primary btn-sm" data-new-contact>+ New Contact</button>
+          ${mayImport ? '<button class="btn btn-sm" data-import="contacts">⬆ Import CSV</button>' : ''}
+          ${mayExport ? '<button class="btn btn-sm" data-export="contacts">⬇ Export CSV</button>' : ''}
+          ${mayCreate ? '<button class="btn btn-primary btn-sm" data-new-contact>+ New Contact</button>' : ''}
         </div>
       </div>
       ${contacts.length ? `
       <table>
         <thead><tr>
-          <th class="sel-col"><input type="checkbox" data-sel-all title="Select all" /></th>
-          <th>Name</th><th>Title</th><th>Email</th><th>Company</th><th>Status</th><th>Tags</th>${customFields.map((f) => `<th>${esc(f.label)}</th>`).join('')}<th></th>
+          ${mayDelete ? '<th class="sel-col"><input type="checkbox" data-sel-all title="Select all" /></th>' : ''}
+          <th>Name</th><th>Title</th><th>Email</th><th>Company</th><th>Status</th><th>Tags</th>${customFields.map((f) => `<th>${esc(f.label)}</th>`).join('')}${mayEdit || mayDelete ? '<th></th>' : ''}
         </tr></thead>
         <tbody>
           ${contacts.map((c) => `
             <tr>
-              <td class="sel-col"><input type="checkbox" data-sel="${esc(c.id)}" /></td>
+              ${mayDelete ? `<td class="sel-col"><input type="checkbox" data-sel="${esc(c.id)}" /></td>` : ''}
               <td><button type="button" class="contact-name" data-edit-contact="${esc(c.id)}"><strong>${esc(c.firstName)} ${esc(c.lastName)}</strong></button>${c.address ? `<div class="meta">${esc(c.address)}</div>` : ''}</td>
               <td>${esc(c.title || '—')}</td>
               <td><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></td>
@@ -999,26 +1383,26 @@ async function renderContacts(el) {
               <td><span class="badge ${esc(c.status)}">${esc(c.status)}</span></td>
               <td>${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</td>
               ${customFields.map((f) => `<td>${esc(c.custom?.[f.id] || '—')}</td>`).join('')}
-              <td class="row-actions">
-                <button class="btn btn-sm" data-edit-contact="${esc(c.id)}">Edit</button>
-                <button class="btn btn-danger btn-sm" data-del-contact="${esc(c.id)}">Delete</button>
-              </td>
+              ${mayEdit || mayDelete ? `<td class="row-actions">
+                ${mayEdit ? `<button class="btn btn-sm" data-edit-contact="${esc(c.id)}">Edit</button>` : ''}
+                ${mayDelete ? `<button class="btn btn-danger btn-sm" data-del-contact="${esc(c.id)}">Delete</button>` : ''}
+              </td>` : ''}
             </tr>`).join('')}
         </tbody>
-      </table>` : '<div class="empty">No contacts yet — add your first one.</div>'}
+      </table>` : `<div class="empty">${mayCreate ? 'No contacts yet — add your first one.' : 'No contacts yet.'}</div>`}
     </div>`;
 
   el.querySelector('[data-new-contact]')?.addEventListener('click', () => contactForm(null, companies));
   el.querySelectorAll('[data-import]').forEach((b) => b.addEventListener('click', () => importCsv(b.dataset.import)));
   el.querySelectorAll('[data-export]').forEach((b) => b.addEventListener('click', () => exportCsv(b.dataset.export)));
-  el.querySelectorAll('[data-edit-contact]').forEach((b) => b.addEventListener('click', () => openContactForEdit(b.dataset.editContact, companies)));
+  el.querySelectorAll('[data-edit-contact]').forEach((b) => b.addEventListener('click', () => openContactForEdit(b.dataset.editContact, companies, !mayEdit)));
   el.querySelectorAll('[data-del-contact]').forEach((b) => b.addEventListener('click', () => deleteContact(b.dataset.delContact)));
-  setupBulkDelete(el.querySelector('.panel'), 'contacts');
+  if (mayDelete) setupBulkDelete(el.querySelector('.panel'), 'contacts');
 }
 
-async function openContactForEdit(id, companies) {
+async function openContactForEdit(id, companies, readOnly = false) {
   const contact = await api('GET', `/api/contacts/${id}`);
-  contactForm(contact, companies);
+  contactForm(contact, companies, { readOnly });
 }
 
 async function deleteContact(id) {
@@ -1030,10 +1414,21 @@ async function deleteContact(id) {
   } catch (err) { toast(err.message, true); }
 }
 
-function contactForm(contact, companies) {
+function contactForm(contact, companies, options = {}) {
+  const readOnly = !!options.readOnly;
   const isEdit = Boolean(contact);
   const companyOptions = companies.map((c) => ({ id: c.id, label: c.name }));
-  openModal(isEdit ? 'Edit Contact' : 'New Contact', `
+  const detail = readOnly && contact && (Array.isArray(contact.deals) || Array.isArray(contact.activities))
+    ? `
+      <div class="full"><hr style="border:0;border-top:1px solid var(--border);margin:2px 0 10px;" />
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Deals</div>
+        ${(contact.deals || []).length ? (contact.deals || []).map((d) => `<div style="font-size:13px;padding:1px 0;">💼 <strong>${esc(d.title)}</strong> · ${esc(STAGE_LABELS[d.stage] || d.stage)} · ${fmtMoney(d.amount)}</div>`).join('') : '<div class="muted" style="font-size:13px">None</div>'}
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:8px 0 6px;">Activity</div>
+        ${(contact.activities || []).length ? (contact.activities || []).map((a) => `<div style="font-size:13px;padding:1px 0;">${iconFor(a.type)} ${esc(a.subject)} · ${fmtDateTime(a.happenedAt)}</div>`).join('') : '<div class="muted" style="font-size:13px">None</div>'}
+      </div>`
+    : '';
+  const title = readOnly ? esc(contact?.firstName || '') + ' ' + esc(contact?.lastName || '') : (isEdit ? 'Edit Contact' : 'New Contact');
+  openModal(title, `
     <div class="form-grid">
       <div><label>First name *</label><input name="firstName" required value="${esc(contact?.firstName || '')}" /></div>
       <div><label>Last name *</label><input name="lastName" required value="${esc(contact?.lastName || '')}" /></div>
@@ -1052,8 +1447,10 @@ function contactForm(contact, companies) {
       ${customFields.length ? `
       <div class="full"><hr style="border:0;border-top:1px solid var(--border);margin:2px 0 10px;" /><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Custom fields</div></div>
       ${customFields.map((f) => customInputHtml(f, contact?.custom?.[f.id])).join('')}` : ''}
-    </div>`);
-  initTypeaheads($('#modalForm'), { companyId: companyOptions });
+      ${detail}
+    </div>`, { readOnly });
+  if (!readOnly) initTypeaheads($('#modalForm'), { companyId: companyOptions });
+  if (readOnly) return; // no submit button / handler — purely a detail view
   $('#modalForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -1083,32 +1480,41 @@ function contactForm(contact, companies) {
 
 async function renderCompanies(el) {
   const companies = await api('GET', '/api/companies');
+  const mayCreate = can('data.create');
+  const mayEdit = can('data.edit');
+  const mayDelete = can('data.delete');
+  const mayImport = can('import');
+  const mayExport = can('export');
+
   el.innerHTML = `
     <div class="panel">
       <div class="panel-head">
         <h2>Companies (${companies.length})</h2>
         <div class="panel-actions">
-          <button class="btn btn-sm" data-import="companies">⬆ Import CSV</button>
-          <button class="btn btn-sm" data-export="companies">⬇ Export CSV</button>
-          <button class="btn btn-primary btn-sm" data-new-company>+ New Company</button>
+          ${mayImport ? '<button class="btn btn-sm" data-import="companies">⬆ Import CSV</button>' : ''}
+          ${mayExport ? '<button class="btn btn-sm" data-export="companies">⬇ Export CSV</button>' : ''}
+          ${mayCreate ? '<button class="btn btn-primary btn-sm" data-new-company>+ New Company</button>' : ''}
         </div>
       </div>
       ${companies.length ? `
       <table>
-        <thead><tr><th class="sel-col"><input type="checkbox" data-sel-all title="Select all" /></th><th>Name</th><th>Industry</th><th>Size</th><th>Contacts</th><th>Open Pipeline</th><th></th></tr></thead>
+        <thead><tr>
+          ${mayDelete ? '<th class="sel-col"><input type="checkbox" data-sel-all title="Select all" /></th>' : ''}
+          <th>Name</th><th>Industry</th><th>Size</th><th>Contacts</th><th>Open Pipeline</th>${mayEdit || mayDelete ? '<th></th>' : ''}
+        </tr></thead>
         <tbody>
           ${companies.map((c) => `
             <tr>
-              <td class="sel-col"><input type="checkbox" data-sel="${esc(c.id)}" /></td>
+              ${mayDelete ? `<td class="sel-col"><input type="checkbox" data-sel="${esc(c.id)}" /></td>` : ''}
               <td><strong>${esc(c.name)}</strong>${c.address ? `<div class="meta">${esc(c.address)}</div>` : ''}</td>
               <td>${esc(c.industry || '—')}</td>
               <td>${esc(c.size || '—')}</td>
               <td>${c.contactCount}</td>
               <td>${fmtMoney(c.openPipeline)}</td>
-              <td class="row-actions">
-                <button class="btn btn-sm" data-edit-company="${esc(c.id)}">Edit</button>
-                <button class="btn btn-danger btn-sm" data-del-company="${esc(c.id)}">Delete</button>
-              </td>
+              ${mayEdit || mayDelete ? `<td class="row-actions">
+                ${mayEdit ? `<button class="btn btn-sm" data-edit-company="${esc(c.id)}">Edit</button>` : ''}
+                ${mayDelete ? `<button class="btn btn-danger btn-sm" data-del-company="${esc(c.id)}">Delete</button>` : ''}
+              </td>` : ''}
             </tr>`).join('')}
         </tbody>
       </table>` : '<div class="empty">No companies yet.</div>'}
@@ -1119,7 +1525,7 @@ async function renderCompanies(el) {
   el.querySelectorAll('[data-export]').forEach((b) => b.addEventListener('click', () => exportCsv(b.dataset.export)));
   el.querySelectorAll('[data-edit-company]').forEach((b) => b.addEventListener('click', () => openCompanyForEdit(b.dataset.editCompany)));
   el.querySelectorAll('[data-del-company]').forEach((b) => b.addEventListener('click', () => deleteCompany(b.dataset.delCompany)));
-  setupBulkDelete(el.querySelector('.panel'), 'companies');
+  if (mayDelete) setupBulkDelete(el.querySelector('.panel'), 'companies');
 }
 
 async function openCompanyForEdit(id) {
@@ -1169,13 +1575,18 @@ function companyForm(company) {
 
 async function renderDeals(el) {
   const deals = await api('GET', '/api/deals');
+  const mayCreate = can('data.create');
+  const mayEdit = can('data.edit');
+  const mayDelete = can('data.delete');
+  const mayExport = can('export');
+
   el.innerHTML = `
     <div class="panel">
       <div class="panel-head">
         <h2>Deal Pipeline</h2>
         <div class="panel-actions">
-          <button class="btn btn-sm" data-export="deals">⬇ Export CSV</button>
-          <button class="btn btn-primary btn-sm" data-new-deal>+ New Deal</button>
+          ${mayExport ? '<button class="btn btn-sm" data-export="deals">⬇ Export CSV</button>' : ''}
+          ${mayCreate ? '<button class="btn btn-primary btn-sm" data-new-deal>+ New Deal</button>' : ''}
         </div>
       </div>
       <div class="pipeline" style="padding:14px;">
@@ -1188,19 +1599,19 @@ async function renderDeals(el) {
               ${col.map((d) => `
                 <div class="deal-card" data-edit-deal="${esc(d.id)}">
                   <div class="deal-top">
-                    <input type="checkbox" data-sel="${esc(d.id)}" title="Select" onclick="event.stopPropagation()" />
+                    ${mayDelete ? `<input type="checkbox" data-sel="${esc(d.id)}" title="Select" onclick="event.stopPropagation()" />` : ''}
                     <div class="title">${esc(d.title)}</div>
                   </div>
                   <div class="amount">${fmtMoney(d.amount)}</div>
                   <div class="meta">${esc(d.companyName || 'No company')}</div>
                   <div class="meta">${esc(d.contactName || '')}</div>
                   <div class="meta">Close: ${fmtDate(d.expectedClose)}</div>
-                  <div class="deal-actions">
-                    <select class="stage-select" data-stage-for="${esc(d.id)}" style="font-size:12px;">
+                  ${mayEdit || mayDelete ? `<div class="deal-actions">
+                    ${mayEdit ? `<select class="stage-select" data-stage-for="${esc(d.id)}" style="font-size:12px;">
                       ${STAGES.map((s) => `<option value="${s}" ${s === d.stage ? 'selected' : ''}>${STAGE_LABELS[s]}</option>`).join('')}
-                    </select>
-                    <button type="button" class="btn btn-danger btn-sm" data-del-deal="${esc(d.id)}">Delete</button>
-                  </div>
+                    </select>` : ''}
+                    ${mayDelete ? `<button type="button" class="btn btn-danger btn-sm" data-del-deal="${esc(d.id)}">Delete</button>` : ''}
+                  </div>` : ''}
                 </div>`).join('') || '<div class="muted" style="text-align:center;padding:12px;">No deals</div>'}
             </div>`;
         }).join('')}
@@ -1209,11 +1620,11 @@ async function renderDeals(el) {
 
   el.querySelector('[data-new-deal]')?.addEventListener('click', () => dealForm(null));
   el.querySelectorAll('[data-export]').forEach((b) => b.addEventListener('click', () => exportCsv(b.dataset.export)));
-  el.querySelectorAll('[data-edit-deal]').forEach((b) => b.addEventListener('click', () => openDealForEdit(b.dataset.editDeal)));
+  el.querySelectorAll('[data-edit-deal]').forEach((b) => b.addEventListener('click', () => openDealForEdit(b.dataset.editDeal, !mayEdit)));
   el.querySelectorAll('[data-del-deal]').forEach((b) => {
     b.addEventListener('click', (e) => { e.stopPropagation(); deleteDeal(b.dataset.delDeal); });
   });
-  setupBulkDelete(el.querySelector('.panel'), 'deals');
+  if (mayDelete) setupBulkDelete(el.querySelector('.panel'), 'deals');
   el.querySelectorAll('[data-stage-for]').forEach((sel) => {
     sel.addEventListener('click', (e) => e.stopPropagation());
     sel.addEventListener('change', async (e) => {
@@ -1226,9 +1637,9 @@ async function renderDeals(el) {
   });
 }
 
-async function openDealForEdit(id) {
+async function openDealForEdit(id, readOnly = false) {
   const deal = await api('GET', `/api/deals/${id}`);
-  dealForm(deal);
+  dealForm(deal, { readOnly });
 }
 
 async function deleteDeal(id) {
@@ -1240,12 +1651,14 @@ async function deleteDeal(id) {
   } catch (err) { toast(err.message, true); }
 }
 
-async function dealForm(deal) {
+async function dealForm(deal, options = {}) {
+  const readOnly = !!options.readOnly;
   const [contacts, companies] = await Promise.all([api('GET', '/api/contacts'), api('GET', '/api/companies')]);
   const isEdit = Boolean(deal);
   const companyOptions = companies.map((c) => ({ id: c.id, label: c.name }));
   const contactOptions = contacts.map((c) => ({ id: c.id, label: `${c.firstName} ${c.lastName}${c.email ? ` (${c.email})` : ''}` }));
-  openModal(isEdit ? 'Edit Deal' : 'New Deal', `
+  const title = readOnly ? esc(deal?.title || '') : (isEdit ? 'Edit Deal' : 'New Deal');
+  openModal(title, `
     <div class="form-grid">
       <div class="full"><label>Title *</label><input name="title" required value="${esc(deal?.title || '')}" /></div>
       <div><label>Amount ($) *</label><input name="amount" type="number" min="0" required value="${deal?.amount ?? ''}" /></div>
@@ -1257,51 +1670,56 @@ async function dealForm(deal) {
       <div><label>Contact</label>
         ${typeaheadHtml('contactId', contactOptions, deal?.contactId || null, 'Search contacts…')}</div>
       <div class="full"><label>Notes</label><textarea name="notes" rows="3">${esc(deal?.notes || '')}</textarea></div>
-    </div>`);
-  initTypeaheads($('#modalForm'), { companyId: companyOptions, contactId: contactOptions });
-  $('#modalForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const payload = {
-      title: fd.get('title'), amount: Number(fd.get('amount')), stage: fd.get('stage'),
-      expectedClose: fd.get('expectedClose') || null, companyId: fd.get('companyId') || null,
-      contactId: fd.get('contactId') || null, notes: fd.get('notes')
-    };
-    try {
-      if (isEdit) await api('PUT', `/api/deals/${deal.id}`, payload);
-      else await api('POST', '/api/deals', payload);
-      toast(isEdit ? 'Deal updated' : 'Deal created');
-      closeModal();
-      render();
-    } catch (err) { toast(err.message, true); }
-  });
+    </div>`, { readOnly });
+  if (!readOnly) {
+    initTypeaheads($('#modalForm'), { companyId: companyOptions, contactId: contactOptions });
+    $('#modalForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = {
+        title: fd.get('title'), amount: Number(fd.get('amount')), stage: fd.get('stage'),
+        expectedClose: fd.get('expectedClose') || null, companyId: fd.get('companyId') || null,
+        contactId: fd.get('contactId') || null, notes: fd.get('notes')
+      };
+      try {
+        if (isEdit) await api('PUT', `/api/deals/${deal.id}`, payload);
+        else await api('POST', '/api/deals', payload);
+        toast(isEdit ? 'Deal updated' : 'Deal created');
+        closeModal();
+        render();
+      } catch (err) { toast(err.message, true); }
+    });
+  }
 }
 
 /* ============================ Activities ============================ */
 
 async function renderActivities(el) {
   const [activities, contacts] = await Promise.all([api('GET', '/api/activities'), api('GET', '/api/contacts')]);
+  const mayCreate = can('data.create');
+  const mayDelete = can('data.delete');
+  const mayExport = can('export');
   el.innerHTML = `
     <div class="panel">
       <div class="panel-head">
         <h2>Activity Log (${activities.length})</h2>
         <div class="panel-actions">
-          <button class="btn btn-sm" data-export="activities">⬇ Export CSV</button>
-          <button class="btn btn-primary btn-sm" data-new-activity>+ Log Activity</button>
+          ${mayExport ? '<button class="btn btn-sm" data-export="activities">⬇ Export CSV</button>' : ''}
+          ${mayCreate ? '<button class="btn btn-primary btn-sm" data-new-activity>+ Log Activity</button>' : ''}
         </div>
       </div>
       ${activities.length ? `
       <div class="activity-list">
         ${activities.map((a) => `
           <div class="activity-item">
-            <input type="checkbox" data-sel="${esc(a.id)}" style="margin-top:4px" />
+            ${mayDelete ? `<input type="checkbox" data-sel="${esc(a.id)}" style="margin-top:4px" />` : ''}
             <span class="type">${iconFor(a.type)}</span>
             <div style="flex:1;">
               <div class="subject">${esc(a.subject)} <span class="tag">${esc(a.type)}</span></div>
               ${a.body ? `<div class="body">${esc(a.body)}</div>` : ''}
               <div class="meta">${esc(a.contactName || '—')} · ${fmtDateTime(a.happenedAt)}</div>
             </div>
-            <button class="btn btn-danger btn-sm" data-del-activity="${esc(a.id)}">Delete</button>
+            ${mayDelete ? `<button class="btn btn-danger btn-sm" data-del-activity="${esc(a.id)}">Delete</button>` : ''}
           </div>`).join('')}
       </div>` : '<div class="empty">No activities logged yet.</div>'}
     </div>`;
@@ -1309,7 +1727,7 @@ async function renderActivities(el) {
   el.querySelector('[data-new-activity]')?.addEventListener('click', () => activityForm(null, contacts));
   el.querySelectorAll('[data-export]').forEach((b) => b.addEventListener('click', () => exportCsv(b.dataset.export)));
   el.querySelectorAll('[data-del-activity]').forEach((b) => b.addEventListener('click', () => deleteActivity(b.dataset.delActivity)));
-  setupBulkDelete(el.querySelector('.panel'), 'activities');
+  if (mayDelete) setupBulkDelete(el.querySelector('.panel'), 'activities');
 }
 
 async function deleteActivity(id) {
@@ -1372,7 +1790,7 @@ $('#globalSearch').addEventListener('input', (e) => {
 
 /* ============================ Modal ============================ */
 
-function openModal(title, formHtml) {
+function openModal(title, formHtml, options = {}) {
   // Replace the form element with a fresh clone so no submit listeners from a
   // previous modal survive — otherwise saving fires the request multiple times.
   const oldForm = $('#modalForm');
@@ -1381,13 +1799,21 @@ function openModal(title, formHtml) {
     oldForm.replaceWith(fresh);
   }
   $('#modalTitle').textContent = title;
-  $('#modalForm').innerHTML = `${formHtml}<div class="form-actions">
-    <button type="button" class="btn btn-ghost" id="modalCancel">Cancel</button>
-    <button type="submit" class="btn btn-primary">Save</button>
-  </div>`;
+  const footer = options.readOnly
+    ? '<button type="button" class="btn btn-ghost" id="modalCancel">Close</button>'
+    : '<button type="button" class="btn btn-ghost" id="modalCancel">Cancel</button><button type="submit" class="btn btn-primary">Save</button>';
+  $('#modalForm').innerHTML = `${formHtml}<div class="form-actions">${footer}</div>`;
   $('#modal').classList.remove('hidden');
   $('#modalCancel').addEventListener('click', closeModal);
+  if (options.readOnly) disableModalInputs();
   $('#modalForm').querySelector('input, select, textarea')?.focus();
+}
+
+/** View-only modal: disable every field while leaving the Close button usable. */
+function disableModalInputs() {
+  $('#modalForm').querySelectorAll('input, select, textarea, .pw-toggle, .ta-clear, .ta-input').forEach((el) => { el.disabled = true; });
+  const cancel = $('#modalCancel');
+  if (cancel) cancel.disabled = false;
 }
 
 function closeModal() {

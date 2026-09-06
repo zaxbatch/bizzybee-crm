@@ -6,7 +6,7 @@ const { validatePassword } = require('../validators');
 const { getPlan } = require('../plans');
 const { hashPassword } = require('../auth');
 const {
-  ROLES, EDITABLE_ROLES, ROLE_BLURBS, PERMISSION_KEYS,
+  ROLES, EDITABLE_ROLES, ROLE_BLURBS, PERMISSION_KEYS, PERMISSION_GROUPS,
   roleEffective, sanitizePermissionMap, denied
 } = require('../permissions');
 
@@ -126,6 +126,11 @@ function teamRouter(db) {
         label: ROLES[id],
         blurb: ROLE_BLURBS[id] || '',
         permissions: roleEffective(db, owner, id)
+      })),
+      catalog: PERMISSION_GROUPS.map((g) => ({
+        id: g.id,
+        title: g.title,
+        items: g.items.map((i) => ({ key: i.key, label: i.label }))
       })),
       subcategories: {
         builtIn: BUILTIN_SUBCATEGORIES,

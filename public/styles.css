@@ -210,3 +210,41 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); b
 .tier .price { font-size: 17px; font-weight: 700; color: var(--primary-dark); margin-bottom: 8px; }
 .tier ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
 .plan-admin { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+
+/* ===== Team: tabs, roles, subcategories ===== */
+.team-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.tab-btn { background: var(--panel); border: 1px solid var(--border); color: var(--muted); padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.tab-btn:hover { border-color: var(--primary); color: var(--text); }
+.tab-btn.active { background: var(--primary); border-color: var(--primary); color: #1e1200; }
+
+.panel-note { padding: 9px 18px; border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--muted); background: #fbfcfe; }
+.panel-note strong { color: var(--text); }
+
+.pill { display: inline-block; border-radius: 999px; padding: 2px 11px; font-size: 12px; font-weight: 600; }
+.pill-owner { background: #131a26; color: #fbbf24; }
+.pill-admin { background: #dcfce7; color: #166534; }
+.pill-editor { background: #e0e7ff; color: #3730a3; }
+.pill-viewer { background: #f1f5f9; color: #475569; }
+
+.you-tag { background: #dbeafe; color: #1e40af; }
+.small { font-size: 12px; }
+.muted.small { font-size: 12px; }
+
+.subcat-chip { display: inline-block; background: #fef3c7; color: #92400e; border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+.builtin-tag { background: #eef2f7; color: #64748b; }
+.subcat-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.subcat-item { display: inline-flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px 5px 6px; }
+.subcat-item .subcat-chip { background: none; padding: 0 4px 0 0; }
+
+/* Permission matrix */
+.perm-matrix { border: 1px solid var(--border); border-radius: 8px; margin: 6px 18px 14px; width: calc(100% - 36px); }
+.perm-matrix th { text-align: left; }
+.perm-matrix td, .perm-matrix th { padding: 8px 14px; font-size: 13px; }
+.perm-matrix .perm-cell { text-align: center; }
+.perm-matrix input[type="checkbox"] { width: auto; accent-color: var(--primary); cursor: pointer; }
+.perm-matrix input[type="checkbox"]:disabled { cursor: not-allowed; opacity: 0.55; }
+.perm-group-row td { background: #f7f8fb; color: var(--muted); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.perm-locked { color: var(--ok); font-weight: 700; }
+
+/* Sidebar user box: role line */
+.user-role { font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.04em; width: 100%; margin-bottom: 6px; }
