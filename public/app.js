@@ -59,6 +59,7 @@ async function loadAccount() {
   try {
     accountInfo = await api('GET', '/api/account');
     renderPlan();
+    updateUIPermissions(); // Reyna nav appears once we know the plan
   } catch { /* plan badge stays on its default */ }
 }
 
@@ -586,6 +587,257 @@ function bindTeamActions(el, d) {
   el.querySelector('[data-upgrade]')?.addEventListener('click', openUpgradeModal);
 }
 
+/* ============================ Reyna (AI assistant) ============================ */
+
+let reynaInfo = null;
+let reynaThread = [];
+let reynaBusy = false;
+
+/** Is Reyna included in the current plan (server gating enforces it)? */
+function aiReady() {
+  return !!(accountInfo && accountInfo.plan && accountInfo.plan.features && accountInfo.plan.features.ai);
+}
+
+async function loadReynaInfo() {
+  try {
+    reynaInfo = await api('GET', '/api/ai');
+  } catch { /* keep whatever we had */ }
+  return reynaInfo;
+}
+
+function reynaMeterHtml() {
+  if (!reynaInfo) return '';
+  const { used, limit } = reynaInfo.credits;
+  const done = used >= limit;
+  return `<span class="reyna-meter ${done ? 'empty' : ''}" id="reynaMeter" title="Resets on the 1st of the month">🤖 ${used} / ${limit} credits used${done ? ' — out until the 1st' : ''}</span>`;
+}
+
+function updateReynaMeter() {
+  const meter = $('#reynaMeter');
+  if (!meter || !reynaInfo) return;
+  const { used, limit } = reynaInfo.credits;
+  meter.textContent = `🤖 ${used} / ${limit} credits used${used >= limit ? ' — out until the 1st' : ''}`;
+  meter.classList.toggle('empty', used >= limit);
+}
+
+function reynaBubbleHtml(role, text) {
+  return `<div class="reyna-msg ${role}"><div class="bubble">${esc(text)}</div></div>`;
+}
+
+function reynaScrollBottom() {
+  const t = $('#reynaThread');
+  if (t) t.scrollTop = t.scrollHeight;
+}
+
+async function renderReyna(el) {
+  await loadReynaInfo();
+  if (!reynaInfo) {
+    el.innerHTML = '<div class="empty">⚠️ Could not reach Reyna.</div>';
+    return;
+  }
+  if (!reynaInfo.enabled) {
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h2>🤖 Reyna — BizzyBee AI assistant</h2></div>
+        <div class="empty" style="padding:36px;text-align:center;">
+          <p style="font-size:15px;margin-bottom:6px;">Reyna answers questions about your workspace, drafts emails, summarizes records and coaches your pipeline.</p>
+          <p>Reyna is a <strong>Pro &amp; Business</strong> feature — Free workspaces are solo without AI.</p>
+          <p style="margin-top:14px;"><button class="btn btn-primary" data-upgrade>See plans &amp; upgrade</button></p>
+        </div>
+      </div>`;
+    el.querySelector('[data-upgrade]')?.addEventListener('click', openUpgradeModal);
+    return;
+  }
+
+  const out = reynaInfo.credits.used >= reynaInfo.credits.limit;
+  el.innerHTML = `
+    <div class="panel reyna-panel">
+      <div class="panel-head">
+        <h2>🤖 Reyna <span class="tag">BizzyBee AI</span></h2>
+        <div class="panel-actions">
+          ${reynaMeterHtml()}
+          ${reynaThread.length ? '<button class="btn btn-ghost btn-sm" data-reyna-clear>New chat</button>' : ''}
+        </div>
+      </div>
+      ${!reynaInfo.configured ? `
+        <div class="panel-note">⚠️ Reyna isn't connected to an AI provider on this server yet — an admin needs to set <code>OPENAI_API_KEY</code>.</div>` : ''}
+      <div id="reynaThread" class="reyna-thread">${reynaThreadHtml()}</div>
+      <form id="reynaForm" class="reyna-form">
+        <textarea id="reynaInput" rows="2" placeholder="Ask Reyna… e.g. “Who should I follow up with today?”" ${out || reynaBusy ? 'disabled' : ''}></textarea>
+        <button type="submit" class="btn btn-primary" ${out ? 'disabled' : ''}>Send</button>
+      </form>
+      ${reynaSuggestionsHtml()}
+    </div>`;
+
+  el.querySelector('[data-reyna-clear]')?.addEventListener('click', () => { reynaThread = []; render(); });
+  el.querySelectorAll('[data-reyna-suggest]').forEach((b) => b.addEventListener('click', () => {
+    if (b.disabled) return;
+    reynaAsk(b.dataset.reynaSuggest);
+  }));
+  const form = el.querySelector('#reynaForm');
+  if (form) form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = el.querySelector('#reynaInput');
+    if (!input || !input.value.trim()) return;
+    const q = input.value.trim();
+    input.value = '';
+    reynaAsk(q);
+  });
+  reynaScrollBottom();
+  el.querySelector('#reynaInput')?.focus();
+}
+
+function reynaThreadHtml() {
+  if (!reynaThread.length) {
+    return `<div class="reyna-msg assistant"><div class="bubble">Hi! I'm <strong>Reyna</strong> 🐝 — your BizzyBee assistant. Ask me about your pipeline, contacts or deals — or try one of the prompts below.</div></div>`;
+  }
+  return reynaThread.map((m) => reynaBubbleHtml(m.role, m.text)).join('');
+}
+
+function reynaSuggestionsHtml() {
+  if (reynaThread.length) return '';
+  const out = reynaInfo && reynaInfo.credits.used >= reynaInfo.credits.limit;
+  const ideas = [
+    'What should I focus on today?',
+    'Summarize my pipeline for me',
+    'Which deals are stuck?',
+    'Draft a follow-up email to my biggest open deal'
+  ];
+  return `<div class="reyna-suggestions">${ideas.map((i) =>
+    `<button type="button" class="chip" data-reyna-suggest="${esc(i)}" ${out ? 'disabled' : ''}>${esc(i)}</button>`).join('')}</div>`;
+}
+
+/** Send a chat message, render it, then swap the typing bubble for Reyna's reply. */
+async function reynaAsk(question) {
+  const q = String(question || '').trim();
+  if (!q || reynaBusy) return;
+  const info = reynaInfo || await loadReynaInfo();
+  if (!info || !info.enabled) return;
+  if (!info.configured) { toast('Reyna is not connected to an AI provider yet.', true); return; }
+  if (info.credits.used >= info.credits.limit) {
+    toast(`You've used all ${info.credits.limit} Reyna credits this month — they reset on the 1st.`, true);
+    return;
+  }
+
+  reynaThread.push({ role: 'user', text: q });
+  const thread = $('#reynaThread');
+  if (thread) thread.insertAdjacentHTML('beforeend', reynaBubbleHtml('user', q));
+  $('.reyna-suggestions')?.remove();
+  reynaBusy = true;
+  if (thread) thread.insertAdjacentHTML('beforeend', '<div class="reyna-msg assistant"><div class="bubble typing">Reyna is thinking…</div></div>');
+  reynaScrollBottom();
+  const last = thread ? thread.lastElementChild : null;
+
+  try {
+    const data = await api('POST', '/api/ai/chat', { message: q });
+    if (last) last.querySelector('.bubble').textContent = data.text;
+    reynaThread.push({ role: 'assistant', text: data.text });
+    if (reynaInfo) reynaInfo.credits = data.credits;
+    updateReynaMeter();
+  } catch (err) {
+    const msg = (err && err.message) || 'Reyna could not answer right now.';
+    if (last) last.querySelector('.bubble').textContent = `⚠️ ${msg}`;
+  } finally {
+    reynaBusy = false;
+    reynaScrollBottom();
+  }
+}
+
+/** Small contextual action bar shown inside record forms (Pro/Business only). */
+function aiActionBarHtml() {
+  return `
+    <div class="full ai-bar">
+      <span class="ai-bar-name">🤖 Reyna</span>
+      <button type="button" class="btn btn-sm" data-ai-summarize>✨ Summarize + next steps</button>
+      <button type="button" class="btn btn-sm" data-ai-email>✉️ Draft email</button>
+    </div>`;
+}
+
+/** Run summarize / email-draft against a record the user can see. */
+async function reynaRecordAction(action, type, id) {
+  const info = reynaInfo || await loadReynaInfo();
+  if (!info || !info.enabled) { toast('Reyna is a Pro & Business feature.', true); return; }
+  if (!info.configured) { toast('Reyna is not connected to an AI provider yet.', true); return; }
+  if (info.credits.used >= info.credits.limit) {
+    toast(`You've used all ${info.credits.limit} Reyna credits this month — they reset on the 1st.`, true);
+    return;
+  }
+  const label = type.charAt(0).toUpperCase() + type.slice(1);
+  openModal(`Reyna — ${action === 'email' ? 'Drafting email' : 'Summarizing'}`, `
+    <div class="empty" style="padding:22px;">🤖 Reyna is reading the ${esc(type)}…</div>`, { readOnly: true });
+
+  try {
+    const payload = { type, id };
+    if (action === 'email') payload.intent = 'a short, friendly follow-up';
+    const data = await api('POST', `/api/ai/${action === 'email' ? 'email-draft' : 'summarize'}`, payload);
+    if (reynaInfo) reynaInfo.credits = data.credits;
+    const text = action === 'email'
+      ? `${data.subject ? 'Subject: ' + data.subject + '\n\n' : ''}${data.body}`
+      : data.text;
+    showReynaResult(action === 'email' ? `✉️ Email draft — ${esc(label)}` : `✨ Reyna's take — ${esc(label)}`, text);
+  } catch (err) {
+    closeModal();
+    toast((err && err.message) || 'Reyna could not complete that.', true);
+  }
+}
+
+/** Show Reyna's text output with a Copy button. */
+function showReynaResult(title, text) {
+  openModal(title, `
+    <div class="muted small" style="margin-bottom:8px;">Copy it, tweak it, make it yours. This is a draft — check the details before sending.</div>
+    <textarea class="reyna-result" rows="14" readonly>${esc(text)}</textarea>`);
+  const btn = $('#modalForm').querySelector('button[type=submit]');
+  if (btn) btn.textContent = '📋 Copy';
+  $('#modalForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const ta = $('#modalForm').querySelector('.reyna-result');
+    if (!ta) return;
+    try {
+      await navigator.clipboard.writeText(ta.value);
+      toast('Copied to clipboard');
+    } catch {
+      ta.select();
+      document.execCommand('copy');
+      toast('Copied to clipboard');
+    }
+  });
+}
+
+/** Wire a record form's Reyna bar (call right after openModal + form listeners). */
+function wireAiBar(type, id) {
+  const summarize = $('#modalForm').querySelector('[data-ai-summarize]');
+  const email = $('#modalForm').querySelector('[data-ai-email]');
+  summarize?.addEventListener('click', () => reynaRecordAction('summarize', type, id));
+  email?.addEventListener('click', () => reynaRecordAction('email', type, id));
+}
+
+/** Activity note polish: replaces the subject/body with Reyna's tidy version. */
+async function reynaPolishNote(subjectInput, bodyInput) {
+  const info = reynaInfo || await loadReynaInfo();
+  if (!info || !info.enabled) { toast('Reyna is a Pro & Business feature.', true); return; }
+  if (!info.configured) { toast('Reyna is not connected to an AI provider yet.', true); return; }
+  if (info.credits.used >= info.credits.limit) {
+    toast(`You've used all ${info.credits.limit} Reyna credits this month — they reset on the 1st.`, true);
+    return;
+  }
+  const subject = subjectInput ? subjectInput.value.trim() : '';
+  const body = bodyInput ? bodyInput.value.trim() : '';
+  if (!body) { toast('Write a note first, then polish it.', true); return; }
+  const polishBtn = bodyInput && bodyInput.form ? bodyInput.form.querySelector('[data-ai-polish]') : null;
+  if (polishBtn) { polishBtn.disabled = true; polishBtn.textContent = 'Reyna is polishing…'; }
+  try {
+    const data = await api('POST', '/api/ai/polish', { subject, body });
+    if (reynaInfo) reynaInfo.credits = data.credits;
+    if (subjectInput && data.subject) subjectInput.value = data.subject;
+    if (bodyInput) bodyInput.value = data.body;
+    toast('Polished by Reyna — review, then save.');
+  } catch (err) {
+    toast((err && err.message) || 'Reyna could not polish that note.', true);
+  } finally {
+    if (polishBtn) { polishBtn.disabled = false; polishBtn.textContent = '✨ Polish with Reyna'; }
+  }
+}
+
 function openUpgradeModal() {
   if (!accountInfo) return;
   const currentId = accountInfo.plan.id;
@@ -600,6 +852,7 @@ function openUpgradeModal() {
         <li>Team seats: ${fmtLimit(p.limits.seats)}${p.limits.seats === 1 ? ' (you)' : ''}${p.limits.seats > 1 ? ' — incl. owner' : ''}</li>
         <li>Roles &amp; privileges: ${p.features.teams ? '✓ Admin / Editor / Viewer + custom' : '— solo'}</li>
         <li>Custom subcategories: ${fmtLimit(p.limits.subcategories)} ${p.limits.subcategories !== 0 ? '(+ built-ins)' : '(built-ins only)'}</li>
+        <li>Reyna AI assistant: ${p.features.ai ? `🤖 ${fmtLimit(p.limits.aiCredits)} credits/mo` : '—'}</li>
         <li>API: ${featureLabel(p.features, 'api')}</li>
         <li>White-label: ${featureLabel(p.features, 'whiteLabel')}</li>
         <li>Priority support: ${featureLabel(p.features, 'prioritySupport')}</li>
@@ -637,6 +890,7 @@ async function submitPlanChange(e) {
     const data = await api('PUT', '/api/account/plan', { plan });
     accountInfo = data;
     renderPlan();
+    updateUIPermissions();
     toast(`Plan updated to ${data.plan.name}.`);
     closeModal();
   } catch (err) {
@@ -1103,7 +1357,8 @@ function updateUIPermissions() {
     const v = b.dataset.view;
     const visible = v === 'team' ? true
       : v === 'customfields' ? can('manage.customFields')
-        : dataViews.includes(v) ? can('data.view') : true;
+        : v === 'reyna' ? (aiReady() && can('data.view'))
+          : dataViews.includes(v) ? can('data.view') : true;
     b.classList.toggle('hidden', !visible);
   });
   const canCreate = can('data.create');
@@ -1133,7 +1388,7 @@ function enterApp(data) {
 
 /* ============================ Navigation ============================ */
 
-const VIEWS = ['dashboard', 'contacts', 'companies', 'deals', 'activities', 'team', 'customfields'];
+const VIEWS = ['dashboard', 'contacts', 'companies', 'deals', 'activities', 'reyna', 'team', 'customfields'];
 let currentView = 'dashboard';
 
 function setActiveNav(view) {
@@ -1156,6 +1411,7 @@ async function render() {
     else if (currentView === 'companies') await renderCompanies(el);
     else if (currentView === 'deals') await renderDeals(el);
     else if (currentView === 'activities') await renderActivities(el);
+    else if (currentView === 'reyna') await renderReyna(el);
     else if (currentView === 'customfields') await renderCustomFields(el);
     else if (currentView === 'team') await renderTeam(el);
   } catch (err) {
@@ -1424,6 +1680,7 @@ function contactForm(contact, companies, options = {}) {
   const readOnly = !!options.readOnly;
   const isEdit = Boolean(contact);
   const companyOptions = companies.map((c) => ({ id: c.id, label: c.name }));
+  const aiBar = (aiReady() && isEdit && contact && contact.id) ? aiActionBarHtml() : '';
   const detail = readOnly && contact && (Array.isArray(contact.deals) || Array.isArray(contact.activities))
     ? `
       <div class="full"><hr style="border:0;border-top:1px solid var(--border);margin:2px 0 10px;" />
@@ -1436,6 +1693,7 @@ function contactForm(contact, companies, options = {}) {
   const title = readOnly ? esc(contact?.firstName || '') + ' ' + esc(contact?.lastName || '') : (isEdit ? 'Edit Contact' : 'New Contact');
   openModal(title, `
     <div class="form-grid">
+      ${aiBar}
       <div><label>First name *</label><input name="firstName" required value="${esc(contact?.firstName || '')}" /></div>
       <div><label>Last name *</label><input name="lastName" required value="${esc(contact?.lastName || '')}" /></div>
       <div class="full"><label>Email *</label><input name="email" type="email" required value="${esc(contact?.email || '')}" /></div>
@@ -1456,6 +1714,7 @@ function contactForm(contact, companies, options = {}) {
       ${detail}
     </div>`, { readOnly });
   if (!readOnly) initTypeaheads($('#modalForm'), { companyId: companyOptions });
+  if (aiBar) wireAiBar('contact', contact.id);
   if (readOnly) return; // no submit button / handler — purely a detail view
   $('#modalForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1550,8 +1809,10 @@ async function deleteCompany(id) {
 
 function companyForm(company) {
   const isEdit = Boolean(company);
+  const aiBar = (aiReady() && isEdit && company && company.id) ? aiActionBarHtml() : '';
   openModal(isEdit ? 'Edit Company' : 'New Company', `
     <div class="form-grid">
+      ${aiBar}
       <div class="full"><label>Name *</label><input name="name" required value="${esc(company?.name || '')}" /></div>
       <div><label>Industry</label><input name="industry" value="${esc(company?.industry || '')}" /></div>
       <div><label>Size</label>
@@ -1563,6 +1824,7 @@ function companyForm(company) {
       <div class="full"><label>Address</label><input name="address" value="${esc(company?.address || '')}" /></div>
       <div class="full"><label>Notes</label><textarea name="notes" rows="3">${esc(company?.notes || '')}</textarea></div>
     </div>`);
+  if (aiBar) wireAiBar('company', company.id);
   $('#modalForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -1661,11 +1923,13 @@ async function dealForm(deal, options = {}) {
   const readOnly = !!options.readOnly;
   const [contacts, companies] = await Promise.all([api('GET', '/api/contacts'), api('GET', '/api/companies')]);
   const isEdit = Boolean(deal);
+  const aiBar = (aiReady() && isEdit && deal && deal.id) ? aiActionBarHtml() : '';
   const companyOptions = companies.map((c) => ({ id: c.id, label: c.name }));
   const contactOptions = contacts.map((c) => ({ id: c.id, label: `${c.firstName} ${c.lastName}${c.email ? ` (${c.email})` : ''}` }));
   const title = readOnly ? esc(deal?.title || '') : (isEdit ? 'Edit Deal' : 'New Deal');
   openModal(title, `
     <div class="form-grid">
+      ${aiBar}
       <div class="full"><label>Title *</label><input name="title" required value="${esc(deal?.title || '')}" /></div>
       <div><label>Amount ($) *</label><input name="amount" type="number" min="0" required value="${deal?.amount ?? ''}" /></div>
       <div><label>Stage</label>
@@ -1677,6 +1941,7 @@ async function dealForm(deal, options = {}) {
         ${typeaheadHtml('contactId', contactOptions, deal?.contactId || null, 'Search contacts…')}</div>
       <div class="full"><label>Notes</label><textarea name="notes" rows="3">${esc(deal?.notes || '')}</textarea></div>
     </div>`, { readOnly });
+  if (aiBar) wireAiBar('deal', deal.id);
   if (!readOnly) {
     initTypeaheads($('#modalForm'), { companyId: companyOptions, contactId: contactOptions });
     $('#modalForm').addEventListener('submit', async (e) => {
@@ -1755,8 +2020,15 @@ function activityForm(activity, contacts) {
         ${typeaheadHtml('contactId', contactOptions, activity?.contactId || null, 'Search contacts…')}</div>
       <div class="full"><label>Subject *</label><input name="subject" required value="${esc(activity?.subject || '')}" /></div>
       <div class="full"><label>Notes</label><textarea name="body" rows="3">${esc(activity?.body || '')}</textarea></div>
+      ${aiReady() ? `<div class="full">
+        <button type="button" class="btn btn-sm" data-ai-polish>✨ Polish with Reyna</button>
+        <span class="muted small" style="margin-left:8px;">Tidy a rough meeting note into a clean activity.</span>
+      </div>` : ''}
     </div>`);
   initTypeaheads($('#modalForm'), { contactId: contactOptions });
+  $('#modalForm').querySelector('[data-ai-polish]')?.addEventListener('click', () => {
+    reynaPolishNote($('#modalForm').querySelector('[name=subject]'), $('#modalForm').querySelector('[name=body]'));
+  });
   $('#modalForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
