@@ -34,7 +34,18 @@ Environment variables (never committed — set in `.env` locally / Netlify env v
 |---|---|
 | `HUBSPOT_ACCESS_TOKEN` | Sign-ups are synced to the Z Dot LLC CRM |
 | `OPENAI_API_KEY` | Reyna (AI assistant). Any OpenAI-compatible key works |
-| `OPENAI_BASE_URL` / `OPENAI_MODEL` | Optional provider override (default `https://api.openai.com/v1`, `gpt-4o-mini`) |
+| `OPENAI_BASE_URL` / `OPENAI_MODEL` | Provider override (default `https://api.openai.com/v1`, `gpt-4o-mini`) |
+| `DEEPSEEK_API_KEY` | One-line DeepSeek setup: sets endpoint `https://api.deepseek.com/v1` + model `deepseek-chat` when no other key/base/model is given |
+| `REYNA_API_KEY` / `REYNA_BASE_URL` / `REYNA_MODEL` | Brand-neutral aliases for the three settings above |
+
+Key precedence: `OPENAI_API_KEY` → `REYNA_API_KEY` → `DEEPSEEK_API_KEY`.
+Pointing Reyna at DeepSeek (any OpenAI-compatible provider works the same way):
+
+```bash
+OPENAI_API_KEY=sk-your-deepseek-key   # or just: DEEPSEEK_API_KEY=sk-...
+OPENAI_BASE_URL=https://api.deepseek.com/v1
+OPENAI_MODEL=deepseek-chat
+```
 | `NETLIFY_AUTH_TOKEN` / `NETLIFY_AUTH_TOKEN_ZDOT` | Blob-store access + deploys |
 | `NETLIFY_SITE_ID` | Blob-store scope (set on the site by the deploy script) |
 

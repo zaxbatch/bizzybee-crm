@@ -24,6 +24,14 @@ function loadEnvFile(file) {
 
 loadEnvFile(path.join(__dirname, '..', '..', '.env'));
 
+// ---- Reyna (AI) provider resolution -------------------------------------
+// Any OpenAI-compatible /chat/completions endpoint works. Key precedence:
+// OPENAI_API_KEY → REYNA_API_KEY → DEEPSEEK_API_KEY. When the key comes from
+// DEEPSEEK_API_KEY and no base/model override is set, the endpoint + model
+// default to DeepSeek so a single .env line is enough.
+const aiKey = process.env.OPENAI_API_KEY || process.env.REYNA_API_KEY || process.env.DEEPSEEK_API_KEY || '';
+const usingDeepSeek = !process.env.OPENAI_API_KEY && !process.env.REYNA_API_KEY && Boolean(process.env.DEEPSEEK_API_KEY);
+
 module.exports = {
   port: process.env.PORT || 3000,
   // Data file lives outside src so it is easy to back up / reset.
@@ -36,11 +44,12 @@ module.exports = {
     token: process.env.HUBSPOT_ACCESS_TOKEN || ''
   },
   ai: {
-    // Reyna — the AI assistant. Any OpenAI-compatible /chat/completions
-    // endpoint works (set OPENAI_BASE_URL to point elsewhere, e.g. Groq or a
-    // local server). The key is read server-side and never sent to the browser.
-    apiKey: process.env.OPENAI_API_KEY || process.env.REYNA_API_KEY || '',
-    baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-    model: process.env.OPENAI_MODEL || 'gpt-4o-mini'
+    // Reyna's provider settings — read server-side, never sent to the browser.
+    apiKey: aiKey,
+    baseUrl: process.env.OPENAI_BASE_URL || process.env.REYNA_BASE_URL
+      || (usingDeepSeek ? 'https://api.deepseek.com/v1' : 'https://api.openai.com/v1'),
+    model: process.env.OPENAI_MODEL || process.env.REYNA_MODEL
+      || (usingDeepSeek ? 'deepseek-chat' : 'gpt-4o-mini'),
+    provider: usingDeepSeek ? 'deepseek' : 'openai-compatible'
   }
 };
