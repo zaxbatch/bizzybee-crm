@@ -629,6 +629,43 @@ function reynaScrollBottom() {
   if (t) t.scrollTop = t.scrollHeight;
 }
 
+/* Floating launcher + dock (available under every view) */
+function reynaDockOpen() {
+  const dock = $('#reynaDock');
+  return !!dock && !dock.classList.contains('hidden');
+}
+
+function openReynaDock() {
+  const dock = $('#reynaDock');
+  const fab = $('#reynaFab');
+  if (!dock) return;
+  dock.classList.remove('hidden');
+  fab?.classList.add('active');
+  fab?.setAttribute('aria-expanded', 'true');
+  reynaRenderNow();
+  dock.querySelector('#reynaInput')?.focus();
+  reynaScrollBottom();
+}
+
+function closeReynaDock() {
+  $('#reynaDock')?.classList.add('hidden');
+  const fab = $('#reynaFab');
+  fab?.classList.remove('active');
+  fab?.setAttribute('aria-expanded', 'false');
+}
+
+function toggleReynaDock() {
+  if (reynaDockOpen()) closeReynaDock();
+  else openReynaDock();
+}
+
+/** (Re)render Reyna wherever she currently lives — the dock (only when open). */
+function reynaRenderNow() {
+  if (!reynaDockOpen()) return;
+  const body = $('#reynaDockBody');
+  if (body) renderReyna(body);
+}
+
 async function renderReyna(el) {
   await loadReynaInfo();
   if (!reynaInfo) {
@@ -642,10 +679,12 @@ async function renderReyna(el) {
         <div class="empty" style="padding:36px;text-align:center;">
           <p style="font-size:15px;margin-bottom:6px;">Reyna answers questions about your workspace, drafts emails, summarizes records and coaches your pipeline.</p>
           <p>Reyna is a <strong>Pro &amp; Business</strong> feature — Free workspaces are solo without AI.</p>
-          <p style="margin-top:14px;"><button class="btn btn-primary" data-upgrade>See plans &amp; upgrade</button></p>
+          <p style="margin-top:14px;"><button class="btn btn-primary" data-upgrade>See plans &amp; upgrade</button>
+            <button class="btn btn-ghost btn-sm" data-reyna-close style="margin-left:8px;">Close</button></p>
         </div>
       </div>`;
     el.querySelector('[data-upgrade]')?.addEventListener('click', openUpgradeModal);
+    el.querySelector('[data-reyna-close]')?.addEventListener('click', closeReynaDock);
     return;
   }
 
@@ -657,6 +696,7 @@ async function renderReyna(el) {
         <div class="panel-actions">
           ${reynaMeterHtml()}
           ${reynaThread.length ? '<button class="btn btn-ghost btn-sm" data-reyna-clear>New chat</button>' : ''}
+          <button class="btn btn-ghost btn-sm reyna-close" data-reyna-close title="Close Reyna" aria-label="Close Reyna">✕</button>
         </div>
       </div>
       ${!reynaInfo.configured ? `
@@ -669,7 +709,8 @@ async function renderReyna(el) {
       ${reynaSuggestionsHtml()}
     </div>`;
 
-  el.querySelector('[data-reyna-clear]')?.addEventListener('click', () => { reynaThread = []; render(); });
+  el.querySelector('[data-reyna-clear]')?.addEventListener('click', () => { reynaThread = []; reynaRenderNow(); });
+  el.querySelector('[data-reyna-close]')?.addEventListener('click', closeReynaDock);
   el.querySelectorAll('[data-reyna-suggest]').forEach((b) => b.addEventListener('click', () => {
     if (b.disabled) return;
     reynaAsk(b.dataset.reynaSuggest);
@@ -893,6 +934,7 @@ async function submitPlanChange(e) {
     accountInfo = data;
     renderPlan();
     updateUIPermissions();
+    reynaRenderNow(); // refresh the dock if it's open (Free lock → chat)
     toast(`Plan updated to ${data.plan.name}.`);
     closeModal();
   } catch (err) {
@@ -1357,10 +1399,12 @@ function updateUIPermissions() {
     const v = b.dataset.view;
     const visible = v === 'team' ? true
       : v === 'customfields' ? can('manage.customFields')
-        : v === 'reyna' ? can('data.view')
-          : dataViews.includes(v) ? can('data.view') : true;
+        : dataViews.includes(v) ? can('data.view') : true;
     b.classList.toggle('hidden', !visible);
   });
+  // Reyna is reachable from a floating launcher, under any view.
+  const fab = $('#reynaFab');
+  if (fab) fab.classList.toggle('hidden', !can('data.view'));
   const canCreate = can('data.create');
   const upBtn = $('#upgradeBtn');
   if (upBtn) upBtn.classList.toggle('hidden', !(currentUser && currentUser.role === 'owner'));
@@ -1388,7 +1432,7 @@ function enterApp(data) {
 
 /* ============================ Navigation ============================ */
 
-const VIEWS = ['dashboard', 'contacts', 'companies', 'deals', 'activities', 'reyna', 'team', 'customfields'];
+const VIEWS = ['dashboard', 'contacts', 'companies', 'deals', 'activities', 'team', 'customfields'];
 let currentView = 'dashboard';
 
 function setActiveNav(view) {
@@ -1411,7 +1455,6 @@ async function render() {
     else if (currentView === 'companies') await renderCompanies(el);
     else if (currentView === 'deals') await renderDeals(el);
     else if (currentView === 'activities') await renderActivities(el);
-    else if (currentView === 'reyna') await renderReyna(el);
     else if (currentView === 'customfields') await renderCustomFields(el);
     else if (currentView === 'team') await renderTeam(el);
   } catch (err) {
@@ -2157,6 +2200,12 @@ $('#logoutBtn').addEventListener('click', async () => {
   clearSession();
   toast('Logged out');
   showAuthScreen();
+});
+
+// Reyna launcher
+$('#reynaFab')?.addEventListener('click', toggleReynaDock);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && reynaDockOpen() && $('#modal').classList.contains('hidden')) closeReynaDock();
 });
 
 // Plans & upgrade
