@@ -608,17 +608,21 @@ function openUpgradeModal() {
       </ul>
     </div>`).join('');
 
+  const isOwner = currentUser && currentUser.role === 'owner';
+  const switchUi = isOwner
+    ? `<div class="form-grid">
+        <div class="full">
+          <label for="planSelect">Switch plan</label>
+          <select id="planSelect">
+            ${accountInfo.plans.map((p) => `<option value="${p.id}" ${p.id === currentId ? 'selected' : ''}>${esc(p.name)}${p.priceMonthly ? ' — $' + p.priceMonthly + '/mo' : ''}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:12px 0 0;">Plan switches are open during the preview — billing and access gating land when we ship subscriptions.</p>`
+    : '<p style="font-size:12px;color:var(--muted);margin:12px 0 0;">Only the account owner can change the plan — ask them to upgrade.</p>';
   const formHtml = `
     <div class="tier-grid">${cards}</div>
-    <div class="form-grid">
-      <div class="full">
-        <label for="planSelect">Switch plan</label>
-        <select id="planSelect">
-          ${accountInfo.plans.map((p) => `<option value="${p.id}" ${p.id === currentId ? 'selected' : ''}>${esc(p.name)}${p.priceMonthly ? ' — $' + p.priceMonthly + '/mo' : ''}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <p style="font-size:12px;color:var(--muted);margin:12px 0 0;">Plan switches are open during the preview — billing and access gating land when we ship subscriptions.</p>`;
+    ${switchUi}`;
 
   openModal('Plans & Upgrade', formHtml);
 }
@@ -1103,6 +1107,8 @@ function updateUIPermissions() {
     b.classList.toggle('hidden', !visible);
   });
   const canCreate = can('data.create');
+  const upBtn = $('#upgradeBtn');
+  if (upBtn) upBtn.classList.toggle('hidden', !(currentUser && currentUser.role === 'owner'));
   const addBtn = $('#primaryAction');
   if (addBtn) addBtn.classList.toggle('hidden', !canCreate);
   if (!canCreate) $('#addMenu').classList.add('hidden');

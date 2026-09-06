@@ -4,8 +4,11 @@ A lightweight CRM for small teams, brought to you by **Z Dot LLC** — with a
 subscription model: **Free / Pro ($19/mo) / Business ($49/mo)**.
 
 - Contacts, companies, deals (pipeline), activities, dashboard, CSV export/import
+- Teams with roles — **Admin / Editor / Viewer**, customizable per-role and
+  per-member privileges, and member subcategories (Sales, Marketing, HR, …)
+- Seats include the account owner: **Free 1 (solo), Pro 5, Business 7,500**
 - Per-account private workspaces with real login protection
-- Plan limits enforced server-side (contacts; pipelines & custom fields pre-wired)
+- Plan limits enforced server-side (contacts, seats, custom fields, subcategories)
 - Runs locally (Express + JSON file) or serverless (Netlify Functions + Blobs)
 
 ## Run locally
@@ -34,4 +37,13 @@ Environment variables (never committed — set in `.env` locally / Netlify env v
 
 Single source of truth: `src/plans.js`. Exposed via `GET /api/account`
 (plan, limits, live usage, prices) and switched via `PUT /api/account/plan`
-(open during preview; gating auto-activates when `BIZZYBEE_ADMIN_KEY` is set).
+(owner-only; open during preview — gating auto-activates when
+`BIZZYBEE_ADMIN_KEY` is set).
+
+Teams: every workspace has a seat allowance that includes the owner
+(Free 1 → owner only, Pro 5, Business 7,500). Invited members get a role
+(Admin / Editor / Viewer) and an optional subcategory. Privileges come from
+`src/permissions.js` (role defaults + workspace role presets + per-member
+overrides) and are enforced on every `/api` route. Built-in subcategories
+(Sales, Marketing, HR, Finance, Support, Operations) ship on every plan;
+custom ones are plan-gated (Free 0, Pro 2, Business unlimited).
